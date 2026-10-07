@@ -1,0 +1,32 @@
+{
+  "name": "MY SPECIAL ENGLISH 💖 고1 내신 대비 비밀 노트",
+  "short_name": "내신영어",
+  "description": "고1 예고 맞춤형 내신 영어 단어 학습, 주관식 테스트 및 Supabase 오답 관리 시스템",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FAF8FF",
+  "theme_color": "#8B78E6",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

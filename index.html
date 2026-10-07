@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>MY SPECIAL ENGLISH 💖 고1 내신 대비 비밀 노트</title>
+  <meta name="description" content="고1 예고 여학생 맞춤형 영어 단어 암기, 주관식 스마트 채점 테스트 및 Supabase 클라우드 오답 관리 시스템">
+  
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#8B78E6">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="내신영어">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="shortcut icon" href="icons/icon-192.png">
+
+  <link rel="stylesheet" href="style.css">
+
+  <!-- PDF.js CDN (Client-side Pure Table Extraction) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- Background decorative light -->
+  <div class="deco-cloud deco-cloud-1" aria-hidden="true"></div>
+  <div class="deco-cloud deco-cloud-2" aria-hidden="true"></div>
+
+  <!-- Confetti Canvas (Visual Only, Completely Silent) -->
+  <canvas id="confettiCanvas" aria-hidden="true"></canvas>
+
+  <!-- Hidden Drawer (사이드바 메뉴 & 관리자 모드) -->
+  <div class="drawer-overlay" id="drawerOverlay"></div>
+  <aside class="drawer-sidebar" id="drawerSidebar" aria-label="전체 학습 및 관리자 메뉴">
+    <div class="drawer-header">
+      <div class="drawer-title-box">
+        <span style="font-size: 24px;">🎀</span>
+        <div>
+          <h2 class="drawer-title">비밀 학습 서랍</h2>
+          <span class="drawer-sub" id="drawerCurrentLessonText">3. The Gift of Art (비상)</span>
+        </div>
+      </div>
+      <button class="drawer-close-btn" id="drawerCloseBtn" title="메뉴 닫기">✕</button>
+    </div>
+
+    <!-- 대단원 선택 & 전환 섹션 -->
+    <div class="drawer-section">
+      <div class="section-label">📚 대단원 선택 / 변경</div>
+      <select id="lessonSelect" class="drawer-select">
+        <!-- Loaded dynamically from Supabase/Local -->
+      </select>
+    </div>
+
+    <!-- 취약 단어 TOP 10 요약 -->
+    <div class="drawer-section">
+      <div class="section-label">🔥 나의 취약 단어 (오답 TOP)</div>
+      <div id="drawerWrongWordsList" class="drawer-wrong-list">
+        <span style="font-size: 12px; color: #8F83AE;">오답 기록을 불러오는 중...</span>
+      </div>
+      <button class="drawer-action-btn" id="btnTestWrongDirect">
+        ⚡ 취약 단어만 바로 재시험 보기
+      </button>
+    </div>
+
+    <!-- 부모님 & 관리자 전용 구역 (PIN 인증 보호) -->
+    <div class="drawer-section admin-box">
+      <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>⚙️ 관리자 & 부모님 메뉴</span>
+        <span id="adminLockBadge" class="admin-lock-badge">🔒 잠김</span>
+      </div>
+      <div class="admin-desc" id="adminDescText">
+        PDF 교재 단어 등록 및 실시간 성적 리포트는 4자리 PIN(기본: 0000) 인증 후 이용 가능합니다.
+      </div>
+
+      <!-- 잠금 해제 전 버튼 -->
+      <div id="adminLockedControls">
+        <button class="drawer-btn-outline" id="btnUnlockAdmin">
+          🔑 관리자 / 부모님 인증 (PIN 입력)
+        </button>
+      </div>
+
+      <!-- 잠금 해제 후 활성화되는 컨트롤 -->
+      <div id="adminUnlockedControls" style="display: none;">
+        <button class="drawer-btn-outline" id="btnOpenParentReport" style="background:#ECE7FF; border-color:#8B78E6; color:#5C48B0; margin-bottom:8px;">
+          📊 실시간 시험 성적 & 오답 리포트 보기
+        </button>
+        <button class="drawer-btn-outline" id="btnOpenNewLessonModal" style="margin-bottom:8px;">
+          + 새 대단원 추가하기
+        </button>
+        <div class="pdf-dropzone" id="pdfDropzone">
+          <span style="font-size: 24px;">📄</span>
+          <span style="font-size: 12px; font-weight: 700; color: #6C52EE;">단어장 PDF 파일 끌어다 놓기</span>
+          <span style="font-size: 10.5px; color: #8C7FA9;">또는 클릭하여 파일 선택</span>
+          <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
+        </div>
+        <div id="pdfParseStatus" style="font-size: 11.5px; font-weight: 700; margin-top: 6px; display: none;"></div>
+
+        <div style="display: flex; gap: 6px; margin-top: 10px;">
+          <button class="btn-micro" id="btnOpenCloudModal" title="Supabase 클라우드 설정">☁️ 클라우드 설정</button>
+          <button class="btn-micro" id="btnOpenChangePinModal" title="관리자 PIN 변경">🔒 PIN 변경</button>
+          <button class="btn-micro" id="btnLockAdmin" title="관리자 잠금">🔒 잠그기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cloud Status Box -->
+    <div class="storage-info-box">
+      <div style="font-weight: 800; color: #5C4B99; font-size: 12px; margin-bottom: 3px; display:flex; align-items:center; justify-content:space-between;">
+        <span>☁️ Supabase Cloud DB</span>
+        <span id="cloudStatusTag" class="cloud-status-tag">확인중</span>
+      </div>
+      <div style="font-size: 11px; color: #7B6E9E; line-height: 1.35;" id="cloudStatusDesc">
+        아이패드와 부모님 기기 간 시험 성적 및 오답이 실시간 자동 동기화됩니다.
+      </div>
+    </div>
+  </aside>
+
+  <!-- 4자리 PIN 입력 모달 (부모님/관리자 인증) -->
+  <div class="modal-overlay" id="pinModal">
+    <div class="modal-card" style="max-width: 340px; text-align: center;">
+      <span style="font-size: 32px; display:block; margin-bottom: 6px;">🔐</span>
+      <h3 style="font-size: 18px; font-weight: 900; color: #382B68; margin-bottom: 6px;">
+        관리자 / 부모님 인증
+      </h3>
+      <p style="font-size: 12px; color: #7E739B; margin-bottom: 16px;">
+        4자리 비밀번호(PIN)를 입력해주세요. (기본: <b>0000</b>)
+      </p>
+
+      <div class="pin-input-container">
+        <input type="password" id="pinInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" 
+          placeholder="••••" class="pin-box-input" autofocus autocomplete="off">
+      </div>
+      <div id="pinErrorMsg" class="pin-error-text" style="display:none;">비밀번호가 올바르지 않습니다.</div>
+
+      <div style="display: flex; gap: 8px; margin-top: 14px;">
+        <button class="action-btn btn-prev" id="btnCancelPin" style="flex:1;">취소</button>
+        <button class="action-btn btn-next" id="btnConfirmPin" style="flex:1;">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIN 변경 모달 -->
+  <div class="modal-overlay" id="changePinModal">
+    <div class="modal-card" style="max-width: 340px;">
+      <h3 style="font-size: 17px; font-weight: 900; color: #382B68; margin-bottom: 10px;">
+        🔒 관리자 PIN 번호 변경
+      </h3>
+      <input type="password" id="newPinInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" 
+        placeholder="새 4자리 PIN 입력" class="subjective-input" style="margin-bottom: 8px; text-align:center; font-size:16px;">
+      <input type="password" id="newPinConfirmInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" 
+        placeholder="새 PIN 확인 재입력" class="subjective-input" style="margin-bottom: 12px; text-align:center; font-size:16px;">
+      <div style="display: flex; gap: 8px;">
+        <button class="action-btn btn-prev" id="btnCancelChangePin" style="flex:1;">취소</button>
+        <button class="action-btn btn-next" id="btnSaveChangePin" style="flex:1;">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Supabase 클라우드 설정 모달 -->
+  <div class="modal-overlay" id="cloudSettingsModal">
+    <div class="modal-card" style="max-width: 440px;">
+      <h3 style="font-size: 18px; font-weight: 900; color: #382B68; margin-bottom: 8px;">
+        ☁️ Supabase 클라우드 DB 연동 설정
+      </h3>
+      <p style="font-size: 12px; color: #7B6E9E; margin-bottom: 14px; line-height: 1.4;">
+        Supabase 대시보드의 <b>Project Settings → API</b>에서 확인한 URL과 anon key를 입력하면 모든 기기 간 실시간 동기화가 활성화됩니다.
+      </p>
+      
+      <label class="setting-label">Project URL</label>
+      <input type="text" id="supabaseUrlInput" class="subjective-input" placeholder="https://xyzcompany.supabase.co" style="margin-bottom: 10px;">
+
+      <label class="setting-label">anon public Key</label>
+      <input type="text" id="supabaseAnonKeyInput" class="subjective-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="margin-bottom: 14px;">
+
+      <div style="display: flex; gap: 8px;">
+        <button class="action-btn btn-prev" id="btnCancelCloudSettings" style="flex:1;">취소</button>
+        <button class="action-btn btn-next" id="btnSaveCloudSettings" style="flex:1;">연동 및 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 부모님 전용 실시간 성적 리포트 모달 -->
+  <div class="modal-overlay" id="parentReportModal">
+    <div class="modal-card modal-large">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <h3 style="font-size: 19px; font-weight: 900; color: #382B68;">
+            📊 부모님용 실시간 시험 성적 & 오답 리포트
+          </h3>
+          <span style="font-size: 12px; color: #7E739B;">아이패드에서 제출된 시험 결과가 실시간으로 집계됩니다.</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="action-btn btn-prev" id="btnRefreshParentReport" style="padding:6px 12px; font-size:12px;">🔄 새로고침</button>
+          <button class="drawer-close-btn" id="btnCloseParentReport">✕</button>
+        </div>
+      </div>
+
+      <!-- 요약 통계 카드 3종 -->
+      <div class="report-summary-grid">
+        <div class="summary-card">
+          <div class="summary-card-label">총 시험 응시 횟수</div>
+          <div class="summary-card-val" id="reportTotalTests">0회</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-label">최근 평균 점수</div>
+          <div class="summary-card-val" id="reportAvgScore">0점</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-label">누적 획득 별(⭐️)</div>
+          <div class="summary-card-val" id="reportStarsWon" style="color:#FFA400;">0개</div>
+        </div>
+      </div>
+
+      <!-- 시험 유형 필터 탭 -->
+      <div class="report-filter-group">
+        <button class="report-filter-pill active" data-category="ALL">전체 보기</button>
+        <button class="report-filter-pill" data-category="VOCAB">📖 단어 시험</button>
+        <button class="report-filter-pill" data-category="UNIT">📝 단원 평가</button>
+        <button class="report-filter-pill" data-category="WRITING">🖋️ 서술형 영작</button>
+      </div>
+
+      <!-- 최근 시험 기록 테이블 -->
+      <h4 style="font-size: 14px; font-weight: 800; color: #4F3F7A; margin: 12px 0 8px;">최근 시험 이력</h4>
+      <div class="report-table-scroll">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>응시 일시</th>
+              <th>대단원</th>
+              <th>시험 유형 / 회차</th>
+              <th>점수</th>
+              <th>정답 수</th>
+              <th>별</th>
+            </tr>
+          </thead>
+          <tbody id="reportRecordsBody">
+            <tr><td colspan="6" style="text-align:center; color:#9587B6;">기록을 불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 최근 오답 상세 로그 -->
+      <h4 style="font-size: 14px; font-weight: 800; color: #4F3F7A; margin: 18px 0 8px;">최근 오답 상세 (학생 작성 답안 vs 정답)</h4>
+      <div class="report-table-scroll">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>단어</th>
+              <th>품사</th>
+              <th>교재 공식 뜻</th>
+              <th>학생 작성 답안</th>
+              <th>기록 시간</th>
+            </tr>
+          </thead>
+          <tbody id="reportWrongLogsBody">
+            <tr><td colspan="5" style="text-align:center; color:#9587B6;">오답 기록이 없습니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 새 대단원 추가 모달 -->
+  <div class="modal-overlay" id="newLessonModal">
+    <div class="modal-card" style="max-width: 380px;">
+      <h3 style="font-size: 17px; font-weight: 900; color: #382B68; margin-bottom: 12px;">
+        📖 새 대단원 만들기
+      </h3>
+      <input type="text" id="newLessonNameInput" class="subjective-input" 
+        placeholder="예: 4. A World of Opportunities" style="margin-bottom: 14px;">
+      <div style="display: flex; gap: 8px;">
+        <button class="action-btn btn-prev" id="btnCancelNewLesson" style="flex:1;">취소</button>
+        <button class="action-btn btn-next" id="btnSaveNewLesson" style="flex:1;">추가하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Diary Frame -->
+  <main class="diary-container">
+    <!-- Slim Binder Line -->
+    <div class="binder-rings" aria-hidden="true">
+      <div class="ring-hole"></div>
+      <div class="ring-hole"></div>
+      <div class="ring-hole"></div>
+      <div class="ring-hole"></div>
+      <div class="ring-hole"></div>
+      <div class="ring-hole"></div>
+    </div>
+
+    <!-- Mini Slim Header (완전 무음 & 40px 슬림 사이즈) -->
+    <header class="app-header-slim">
+      <div class="header-left">
+        <button id="drawerOpenBtn" class="menu-burger-btn" title="전체 메뉴 및 관리자">
+          <span>☰</span>
+        </button>
+        <span class="slim-title">MY SPECIAL ENGLISH</span>
+        <span class="slim-lesson-tag" id="headerLessonTag">3과 The Gift of Art</span>
+      </div>
+
+      <div class="header-right">
+        <!-- Silent Icon Indicator (소리 없음) -->
+        <span class="silent-badge" title="클릭 소리 없는 독서실 무음 모드">🔕 무음</span>
+        <!-- Star Badge -->
+        <div class="slim-star-badge" id="headerStarBadge" title="모은 별 보관함">
+          <span>⭐️</span>
+          <span id="headerStarCount">0</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-bar" role="tablist">
+      <button class="tab-btn active" data-tab="study" role="tab" id="tabBtnStudy">
+        <span>📖</span> 단어 공부 (20개씩)
+      </button>
+      <button class="tab-btn" data-tab="test" role="tab" id="tabBtnTest">
+        <span>✍️</span> 주관식 단어 시험
+      </button>
+      <button class="tab-btn" data-tab="ranking" data-tab-name="ranking" role="tab" id="tabBtnRanking">
+        <span>🔥</span> 취약 단어 분석
+      </button>
+      <button class="tab-btn" data-tab="mistakes" role="tab" id="tabBtnMistakes">
+        <span>📝</span> 회차별 오답 노트
+      </button>
+      <button class="tab-btn" data-tab="final_mistakes" role="tab" id="tabBtnFinalMistakes">
+        <span>🖨️</span> 파이널 오답 단어장
+      </button>
+      <button class="tab-btn" data-tab="rewards" role="tab" id="tabBtnRewards">
+        <span>⭐️</span> 별 보관함
+      </button>
+    </nav>
+
+    <!-- TAB 1: 단어 공부 (20단어 한 화면 / 옆에 뜻 바로 표시 / 꿀팁 제거) -->
+    <section id="tab-study" class="tab-content active" role="tabpanel">
+      <div class="study-top-panel">
+        <div class="compact-pager">
+          <button class="pager-arrow-btn" id="btnPrevPage" title="이전 20단어">◀</button>
+          <span id="pageTitleText" class="pager-text">1 / 2 페이지 (1~20번)</span>
+          <button class="pager-arrow-btn" id="btnNextPage" title="다음 20단어">▶</button>
+          <div class="page-dots" id="pageDots"></div>
+        </div>
+
+        <div class="study-view-toggles">
+          <button class="toggle-chip active" data-mode="none">👀 전체 보기</button>
+          <button class="toggle-chip" data-mode="korean">🙈 뜻 숨기기</button>
+          <button class="toggle-chip" data-mode="english">🙈 단어 숨기기</button>
+          <button class="toggle-chip" data-mode="all">🙈 모두 숨기기</button>
+        </div>
+      </div>
+
+      <!-- 20 Words Grid -->
+      <div class="words-grid" id="wordsGrid"></div>
+    </section>
+
+    <!-- TAB 2: 주관식 테스트 (출제 모드 선택: 모든 문제 vs 오답만 풀기) -->
+    <section id="tab-test" class="tab-content" role="tabpanel">
+      <!-- Test Header Panel -->
+      <div class="test-header-card">
+        <!-- 출제 모드 선택 토글 (모든 문제 vs 오답만 풀기) -->
+        <div class="test-mode-toggle-group">
+          <button class="mode-pill active" id="modeBtnAll" data-mode="ALL">
+            모든 문제 풀기 (40단어)
+          </button>
+          <button class="mode-pill" id="modeBtnWrong" data-mode="WRONG_ONLY">
+            오답만 집중 풀기 🔥
+          </button>
+        </div>
+
+        <div class="round-select-box">
+          <span style="font-weight: 800; color: #5C4B99; font-size: 12px;">회차:</span>
+          <div class="round-btn-group">
+            <button class="round-pill active" data-round="1">1회</button>
+            <button class="round-pill" data-round="2">2회</button>
+            <button class="round-pill" data-round="3">3회</button>
+            <button class="round-pill" data-round="4">4회</button>
+            <button class="round-pill" data-round="5">5회</button>
+          </div>
+        </div>
+
+        <div class="test-progress-box">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="testProgressBar"></div>
+          </div>
+          <span class="progress-counter" id="testProgressText">0 / 40</span>
+        </div>
+      </div>
+
+      <!-- 2-Part Switcher (1~20번 vs 21~40번) -->
+      <div class="test-part-nav" id="testPartNav">
+        <button class="part-tab-btn active" data-part="1">
+          <span>🌸</span> 1구간 (1~20번)
+        </button>
+        <button class="part-tab-btn" data-part="2">
+          <span>🍓</span> 2구간 (21~40번)
+        </button>
+      </div>
+
+      <div class="test-guide-banner">
+        💡 <b>스마트 채점:</b> 쉼표로 나열된 뜻 중 <b>한 가지만 써도 정답</b>이며, <b>띄어쓰기 및 사소한 오타</b>도 너그럽게 정답 인정됩니다!
+      </div>
+
+      <!-- 2 Columns Container -->
+      <div class="test-columns-container">
+        <div class="test-col" id="testColLeft"></div>
+        <div class="test-col" id="testColRight"></div>
+      </div>
+
+      <!-- Submit Panel -->
+      <div class="test-submit-panel">
+        <button class="btn-submit-all" id="btnSubmitAll">
+          <span>✨</span> 주관식 답안 한 번에 채점하고 클라우드에 저장! <span>⭐️</span>
+        </button>
+        <div style="font-size: 12px; color: #8C80AF; font-weight: 600;">
+          * 60점 이상 별 1개 + 10점마다 별 1개 추가 (최대 5개)
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: 취약 단어 랭킹 (TOP 10 및 파이널 오답 단어장) -->
+    <section id="tab-ranking" class="tab-content" role="tabpanel">
+      <div class="ranking-header">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 900; color: #382B68;">
+            🔥 나의 취약 단어 정밀 분석표
+          </h2>
+          <p style="font-size: 13px; color: #7E739B;">
+            테스트를 치를 때마다 Supabase 클라우드에 누적된 오답 횟수를 기준으로 가장 많이 틀린 단어들입니다.
+          </p>
+        </div>
+        <button class="action-btn btn-next" id="btnTestRankingWords">
+          ⚡ 이 취약 단어들만 바로 시험 보기
+        </button>
+      </div>
+
+      <div id="rankingTableContainer" class="ranking-table-box"></div>
+    </section>
+
+    <!-- TAB 4: 회차별 오답 노트 -->
+    <section id="tab-mistakes" class="tab-content" role="tabpanel">
+      <div style="margin-bottom: 12px;">
+        <h2 style="font-size: 18px; font-weight: 900; color: #382B68; margin-bottom: 4px;">
+          📝 회차별 오답 보관함
+        </h2>
+        <p style="font-size: 13px; color: #7E739B;">
+          회차별로 틀린 단어를 모아보고 다시 풀어보세요!
+        </p>
+      </div>
+
+      <div class="mistakes-round-selector" id="mistakesRoundButtons"></div>
+      <div id="mistakesContainer"></div>
+    </section>
+
+    <!-- TAB 5: 내신 대비 파이널 오답 단어장 (인쇄 최적화) -->
+    <section id="tab-final_mistakes" class="tab-content" role="tabpanel">
+      <div class="final-mistakes-header">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 900; color: #382B68; margin-bottom: 4px;">
+            🖨️ 내신 대비 파이널 오답 단어장
+          </h2>
+          <p style="font-size: 13px; color: #7E739B;">
+            지금까지 한 번이라도 틀렸던 모든 핵심 단어들을 모아 시험 직전 최종 점검하고 A4로 인쇄할 수 있습니다.
+          </p>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="action-btn btn-print" id="btnPrintFinalMistakes">
+            🖨️ A4 용지로 인쇄하기
+          </button>
+          <button class="action-btn btn-next" id="btnTestFinalMistakes">
+            ⚡ 파이널 오답만 재시험
+          </button>
+        </div>
+      </div>
+
+      <div id="finalMistakesTableContainer" class="printable-area"></div>
+    </section>
+
+    <!-- TAB 6: 별 & 스티커 보관함 -->
+    <section id="tab-rewards" class="tab-content" role="tabpanel">
+      <div class="reward-board-card">
+        <span class="level-badge" id="rewardLevel">🌱 Lv.1 비밀 노트 입문자</span>
+        <h2 style="font-size: 20px; font-weight: 900; color: #382B68; margin-bottom: 6px;">
+          나의 소중한 별 도장판 ⭐️
+        </h2>
+        <p style="font-size: 13px; color: #766996; margin-bottom: 12px;">
+          현재 모은 별: <b id="rewardStarCount" style="color: #FF6584; font-size: 16px;">0</b>개
+        </p>
+        <div class="star-stamp-grid" id="stampGrid"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- TEST RESULT MODAL -->
+  <div class="modal-overlay" id="resultModal">
+    <div class="modal-card">
+      <div class="modal-stamp" id="modalStamp">🎉</div>
+      <h3 class="modal-title" id="modalTitle">테스트 완료!</h3>
+      <div style="color: #7E739B; font-weight: 700; font-size: 13px;" id="currentRoundBadge">결과</div>
+
+      <div class="modal-score-box">
+        <div style="font-size: 12px; font-weight: 800; color: #8A7BAE;">획득 점수</div>
+        <div class="score-number" id="modalScoreNumber">100점</div>
+        <div class="stars-won-row" id="modalStarsRow"></div>
+        <div class="score-rule-tag" id="modalFeedback">멋지게 해냈어요!</div>
+      </div>
+
+      <!-- Result Action Options -->
+      <div class="modal-actions">
+        <button class="action-btn btn-next" id="modalBtnRetakeWrong">
+          🔥 틀린 단어만 바로 다시 풀기
+        </button>
+        <button class="action-btn btn-prev" id="modalBtnRetakeAll">
+          🔄 모든 문제 다시 풀기
+        </button>
+        <button class="action-btn btn-reset" id="modalBtnStudy">
+          📖 단어장으로 돌아가기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="words.js"></script>
+  <script src="grading.js"></script>
+  <script src="supabaseClient.js"></script>
+  <script src="pdfParser.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
