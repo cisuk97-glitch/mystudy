@@ -78,37 +78,6 @@ English3/
 
 ---
 
-## 🚀 실행 및 배포 가이드
-
-### 1. macOS 로컬 실행 (가장 간단한 방법)
-`start_app.command` 파일을 더블 클릭하면 내장 Python 서버가 구동되고 브라우저가 자동 실행됩니다.
-```bash
-# 터미널에서 직접 실행 시:
-python3 server.py
-# 브라우저에서 http://localhost:8089 접속
-```
-
-### 2. Vercel 무료 웹 배포
-정적 파일 구조로 별도의 빌드 단계 없이 1분 만에 배포할 수 있습니다.
-```bash
-git init
-git add .
-git commit -m "feat: MY SPECIAL ENGLISH 배포"
-git remote add origin https://github.com/<사용자이름>/<리포지토리이름>.git
-git push -u origin main
-```
-1. [Vercel](https://vercel.com/) 대시보드에서 **[Add New...] → [Project]** 선택.
-2. GitHub 저장소 Import 후 **Framework Preset: Other**, **Build Command: (비워둠)** 설정.
-3. **[Deploy]** 클릭 시 고유 HTTPS 주소로 즉시 서비스 시작.
-
-### 3. 아이패드(iPad) 홈 화면 네이티브 PWA 설치
-1. 아이패드 Safari 브라우저에서 배포된 웹사이트 주소로 접속합니다.
-2. 상단 툴바의 **[공유] 아이콘(네모 위 화살표 ⬆️)**을 탭합니다.
-3. **[홈 화면에 추가]**를 누른 뒤 이름을 확인하고 **[추가]**를 완료합니다.
-4. 홈 화면에 생성된 앱 아이콘을 실행하면 **주소창과 툴바가 없는 전체 화면 네이티브 앱**으로 구동됩니다.
-
----
-
 ## ☁️ Supabase 클라우드 설정 가이드
 
 1. **프로젝트 생성**: [Supabase](https://supabase.com/)에서 새 프로젝트를 생성합니다.
