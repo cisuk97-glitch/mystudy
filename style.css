@@ -2690,6 +2690,16 @@ body:has(#tab-paper_test.active) {
 /* ========================================================
    서술형 영작 인터랙티브 풀이 뷰 스타일 (writing-sentences)
    ======================================================== */
+#writingContainer {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 12px 40px 12px;
+  box-sizing: border-box;
+}
+
 .writing-card-layout {
   display: flex;
   flex-direction: column;
