@@ -3,7 +3,7 @@
 // 오프라인 지원 및 정적 리소스 캐싱
 // ========================================================
 
-const CACHE_NAME = 'my-special-english-v1';
+const CACHE_NAME = 'my-special-english-v8';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -23,7 +23,7 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching app assets');
+      console.log('[SW] Caching app assets v5');
       return cache.addAll(STATIC_ASSETS).catch(err => {
         console.warn('[SW] Cache addAll warning:', err);
       });
@@ -49,6 +49,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // chrome-extension 등 비HTTP 요청 및 GET 외 메소드는 캐시 제외
+  if (!event.request.url.startsWith('http') || event.request.method !== 'GET') {
+    return;
+  }
+
   const url = new URL(event.request.url);
 
   // Supabase API 호출이나 외부 CDN은 네트워크 우선
@@ -59,22 +64,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 로컬 정적 리소스: Cache First with Network Fallback
+  // 로컬 정적 리소스: Network First (최신 코드 즉시 반영) with Cache Fallback (오프라인 지원)
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
         return networkResponse;
-      });
-    })
+      })
+      .catch(() => caches.match(event.request))
   );
 });

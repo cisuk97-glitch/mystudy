@@ -164,10 +164,29 @@ function gradeAnswer(userInput, targetAnswer, isEnglish = false) {
   return { isCorrect: false, isTypo: false, notice: '', matchedAnswer: targetAnswer };
 }
 
+/**
+ * test_records 테이블 체크 제약조건 (chk_test_category: 'VOCAB' | 'UNIT' | 'WRITING') 검증 및 표준화
+ */
+function normalizeTestCategory(category) {
+  if (!category) return 'VOCAB';
+  const uc = String(category).toUpperCase().trim();
+  if (uc === 'VOCAB' || uc === 'UNIT' || uc === 'WRITING') {
+    return uc;
+  }
+  if (uc.includes('UNIT') || uc.includes('단원') || uc.includes('PDF') || uc.includes('전체테스트')) {
+    return 'UNIT';
+  }
+  if (uc.includes('WRIT') || uc.includes('서술') || uc.includes('영작')) {
+    return 'WRITING';
+  }
+  return 'UNIT';
+}
+
 // 브라우저 전역 노출
 if (typeof window !== 'undefined') {
   window.gradeAnswer = gradeAnswer;
   window.decomposeHangul = decomposeHangul;
   window.levenshteinDistance = levenshteinDistance;
   window.cleanText = cleanText;
+  window.normalizeTestCategory = normalizeTestCategory;
 }

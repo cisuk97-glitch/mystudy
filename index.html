@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>MY SPECIAL ENGLISH 💖 고1 내신 대비 비밀 노트</title>
   <meta name="description" content="고1 예고 여학생 맞춤형 영어 단어 암기, 주관식 스마트 채점 테스트 및 Supabase 클라우드 오답 관리 시스템">
-  
+
   <!-- PWA & Mobile Web App Meta -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#8B78E6">
@@ -21,9 +23,11 @@
 
   <!-- PDF.js CDN (Client-side Pure Table Extraction) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
   <!-- Supabase JS Client CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
+
 <body>
 
   <!-- Background decorative light -->
@@ -33,88 +37,80 @@
   <!-- Confetti Canvas (Visual Only, Completely Silent) -->
   <canvas id="confettiCanvas" aria-hidden="true"></canvas>
 
-  <!-- Hidden Drawer (사이드바 메뉴 & 관리자 모드) -->
+  <!-- Hidden Drawer (사이드바 메뉴 & 설정 관리자) -->
   <div class="drawer-overlay" id="drawerOverlay"></div>
-  <aside class="drawer-sidebar" id="drawerSidebar" aria-label="전체 학습 및 관리자 메뉴">
+  <aside class="drawer-sidebar" id="drawerSidebar" aria-label="전체 학습 설정 및 관리자 메뉴">
     <div class="drawer-header">
       <div class="drawer-title-box">
-        <span style="font-size: 24px;">🎀</span>
+        <span style="font-size: 22px;">⚙️</span>
         <div>
-          <h2 class="drawer-title">비밀 학습 서랍</h2>
-          <span class="drawer-sub" id="drawerCurrentLessonText">3. The Gift of Art (비상)</span>
+          <h2 class="drawer-title">학습 설정 및 관리</h2>
+          <span class="drawer-sub" id="drawerCurrentLessonText">영어 · 3. The Gift of Art (비상)</span>
         </div>
       </div>
       <button class="drawer-close-btn" id="drawerCloseBtn" title="메뉴 닫기">✕</button>
     </div>
 
-    <!-- 대단원 선택 & 전환 섹션 -->
-    <div class="drawer-section">
-      <div class="section-label">📚 대단원 선택 / 변경</div>
-      <select id="lessonSelect" class="drawer-select">
-        <!-- Loaded dynamically from Supabase/Local -->
-      </select>
-    </div>
-
-    <!-- 취약 단어 TOP 10 요약 -->
-    <div class="drawer-section">
-      <div class="section-label">🔥 나의 취약 단어 (오답 TOP)</div>
-      <div id="drawerWrongWordsList" class="drawer-wrong-list">
-        <span style="font-size: 12px; color: #8F83AE;">오답 기록을 불러오는 중...</span>
+    <!-- 1. 부모님 & 관리자 메뉴 (상시 노출) -->
+    <div class="drawer-section admin-box" style="margin-top: 10px;">
+      <div class="section-label">
+        <span>👨‍👩‍👧 관리자 & 부모님 메뉴</span>
       </div>
-      <button class="drawer-action-btn" id="btnTestWrongDirect">
-        ⚡ 취약 단어만 바로 재시험 보기
+
+      <button class="drawer-btn-outline" id="btnOpenParentReport"
+        style="background:#ECE7FF; border-color:#8B78E6; color:#5C48B0; margin-bottom:8px; width: 100%;">
+        📊 실시간 시험 성적 & 오답 리포트 보기
+      </button>
+
+      <button class="drawer-btn-outline" id="btnOpenPdfTestModal"
+        style="background:#EBF7FF; border-color:#5B93E6; color:#2E62B8; margin-bottom:8px; width: 100%;">
+        📄 + 새 시험지 등록 (전체/단원평가 PDF)
+      </button>
+
+      <!-- 단어장 PDF 등록 버튼 -->
+      <button class="drawer-btn-outline" id="btnUploadVocabPdf"
+        style="background:#EBF9F1; border-color:#34D399; color:#065F46; margin-bottom:8px; width: 100%;">
+        📖 단어장 서술형 등록
+      </button>
+      <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
+      <div id="pdfParseStatus" style="font-size: 11.5px; font-weight: 700; margin-top: 4px; display: none;"></div>
+
+      <!-- 단원 및 시험지 관리 버튼 -->
+      <button class="drawer-btn-outline" id="btnOpenManageTests"
+        style="background:#FFF1F2; border-color:#FDA4AF; color:#BE123C; width: 100%; margin-top: 6px;">
+        📋 단원 및 시험지 관리
+      </button>
+
+      <!-- 오답노트 관리 버튼 -->
+      <button class="drawer-btn-outline" id="btnOpenWrongNotesManage"
+        style="background:#FEF3C7; border-color:#F59E0B; color:#B45309; width: 100%; margin-top: 6px;">
+        📝 오답노트 관리
       </button>
     </div>
 
-    <!-- 부모님 & 관리자 전용 구역 (PIN 인증 보호) -->
-    <div class="drawer-section admin-box">
-      <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
-        <span>⚙️ 관리자 & 부모님 메뉴</span>
-        <span id="adminLockBadge" class="admin-lock-badge">🔒 잠김</span>
-      </div>
-      <div class="admin-desc" id="adminDescText">
-        PDF 교재 단어 등록 및 실시간 성적 리포트는 4자리 PIN(기본: 0000) 인증 후 이용 가능합니다.
-      </div>
+    <!-- 여백 및 하단 고정 영역 -->
+    <div style="flex: 1; min-height: 20px;"></div>
 
-      <!-- 잠금 해제 전 버튼 -->
-      <div id="adminLockedControls">
-        <button class="drawer-btn-outline" id="btnUnlockAdmin">
-          🔑 관리자 / 부모님 인증 (PIN 입력)
-        </button>
-      </div>
-
-      <!-- 잠금 해제 후 활성화되는 컨트롤 -->
-      <div id="adminUnlockedControls" style="display: none;">
-        <button class="drawer-btn-outline" id="btnOpenParentReport" style="background:#ECE7FF; border-color:#8B78E6; color:#5C48B0; margin-bottom:8px;">
-          📊 실시간 시험 성적 & 오답 리포트 보기
-        </button>
-        <button class="drawer-btn-outline" id="btnOpenNewLessonModal" style="margin-bottom:8px;">
-          + 새 대단원 추가하기
-        </button>
-        <div class="pdf-dropzone" id="pdfDropzone">
-          <span style="font-size: 24px;">📄</span>
-          <span style="font-size: 12px; font-weight: 700; color: #6C52EE;">단어장 PDF 파일 끌어다 놓기</span>
-          <span style="font-size: 10.5px; color: #8C7FA9;">또는 클릭하여 파일 선택</span>
-          <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
-        </div>
-        <div id="pdfParseStatus" style="font-size: 11.5px; font-weight: 700; margin-top: 6px; display: none;"></div>
-
-        <div style="display: flex; gap: 6px; margin-top: 10px;">
-          <button class="btn-micro" id="btnOpenCloudModal" title="Supabase 클라우드 설정">☁️ 클라우드 설정</button>
-          <button class="btn-micro" id="btnOpenChangePinModal" title="관리자 PIN 변경">🔒 PIN 변경</button>
-          <button class="btn-micro" id="btnLockAdmin" title="관리자 잠금">🔒 잠그기</button>
-        </div>
-      </div>
+    <!-- 2. 새 단원 등록 버튼 (클릭 시 팝업 창 오픈) -->
+    <div class="drawer-section" style="padding-top: 8px; margin-bottom: 8px;">
+      <button class="drawer-action-btn" id="btnOpenAddLessonModal" style="width: 100%; font-size: 13.5px;">
+        ➕ 새 단원 등록하기
+      </button>
     </div>
 
-    <!-- Cloud Status Box -->
-    <div class="storage-info-box">
-      <div style="font-weight: 800; color: #5C4B99; font-size: 12px; margin-bottom: 3px; display:flex; align-items:center; justify-content:space-between;">
-        <span>☁️ Supabase Cloud DB</span>
+    <!-- 3. 클라우드 동기화 (서랍 맨 아래로 이동) -->
+    <div class="drawer-section storage-info-box" style="margin-bottom: 6px;">
+      <div
+        style="font-weight: 800; color: #5C4B99; font-size: 12px; margin-bottom: 4px; display:flex; align-items:center; justify-content:space-between;">
+        <span>☁️ 클라우드 동기화</span>
         <span id="cloudStatusTag" class="cloud-status-tag">확인중</span>
       </div>
-      <div style="font-size: 11px; color: #7B6E9E; line-height: 1.35;" id="cloudStatusDesc">
+      <div style="font-size: 11px; color: #7B6E9E; line-height: 1.35; margin-bottom: 8px;" id="cloudStatusDesc">
         아이패드와 부모님 기기 간 시험 성적 및 오답이 실시간 자동 동기화됩니다.
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn-micro" id="btnManualSync" style="flex:1;">🔄 수동 동기화</button>
+        <button class="btn-micro" id="btnOpenCloudModal" style="flex:1;">☁️ 클라우드 설정</button>
       </div>
     </div>
   </aside>
@@ -131,8 +127,8 @@
       </p>
 
       <div class="pin-input-container">
-        <input type="password" id="pinInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" 
-          placeholder="••••" class="pin-box-input" autofocus autocomplete="off">
+        <input type="password" id="pinInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" placeholder="••••"
+          class="pin-box-input" autofocus autocomplete="off">
       </div>
       <div id="pinErrorMsg" class="pin-error-text" style="display:none;">비밀번호가 올바르지 않습니다.</div>
 
@@ -149,10 +145,12 @@
       <h3 style="font-size: 17px; font-weight: 900; color: #382B68; margin-bottom: 10px;">
         🔒 관리자 PIN 번호 변경
       </h3>
-      <input type="password" id="newPinInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" 
-        placeholder="새 4자리 PIN 입력" class="subjective-input" style="margin-bottom: 8px; text-align:center; font-size:16px;">
-      <input type="password" id="newPinConfirmInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" 
-        placeholder="새 PIN 확인 재입력" class="subjective-input" style="margin-bottom: 12px; text-align:center; font-size:16px;">
+      <input type="password" id="newPinInput" maxlength="4" pattern="[0-9]*" inputmode="numeric"
+        placeholder="새 4자리 PIN 입력" class="subjective-input"
+        style="margin-bottom: 8px; text-align:center; font-size:16px;">
+      <input type="password" id="newPinConfirmInput" maxlength="4" pattern="[0-9]*" inputmode="numeric"
+        placeholder="새 PIN 확인 재입력" class="subjective-input"
+        style="margin-bottom: 12px; text-align:center; font-size:16px;">
       <div style="display: flex; gap: 8px;">
         <button class="action-btn btn-prev" id="btnCancelChangePin" style="flex:1;">취소</button>
         <button class="action-btn btn-next" id="btnSaveChangePin" style="flex:1;">저장</button>
@@ -169,12 +167,14 @@
       <p style="font-size: 12px; color: #7B6E9E; margin-bottom: 14px; line-height: 1.4;">
         Supabase 대시보드의 <b>Project Settings → API</b>에서 확인한 URL과 anon key를 입력하면 모든 기기 간 실시간 동기화가 활성화됩니다.
       </p>
-      
+
       <label class="setting-label">Project URL</label>
-      <input type="text" id="supabaseUrlInput" class="subjective-input" placeholder="https://xyzcompany.supabase.co" style="margin-bottom: 10px;">
+      <input type="text" id="supabaseUrlInput" class="subjective-input" placeholder="https://xyzcompany.supabase.co"
+        style="margin-bottom: 10px;">
 
       <label class="setting-label">anon public Key</label>
-      <input type="text" id="supabaseAnonKeyInput" class="subjective-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="margin-bottom: 14px;">
+      <input type="text" id="supabaseAnonKeyInput" class="subjective-input"
+        placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="margin-bottom: 14px;">
 
       <div style="display: flex; gap: 8px;">
         <button class="action-btn btn-prev" id="btnCancelCloudSettings" style="flex:1;">취소</button>
@@ -194,9 +194,15 @@
           <span style="font-size: 12px; color: #7E739B;">아이패드에서 제출된 시험 결과가 실시간으로 집계됩니다.</span>
         </div>
         <div style="display:flex; gap:8px;">
-          <button class="action-btn btn-prev" id="btnRefreshParentReport" style="padding:6px 12px; font-size:12px;">🔄 새로고침</button>
+          <button class="action-btn btn-prev" id="btnRefreshParentReport" style="padding:6px 12px; font-size:12px;">🔄
+            새로고침</button>
           <button class="drawer-close-btn" id="btnCloseParentReport">✕</button>
         </div>
+      </div>
+
+      <!-- 과목 선택 바 (과목당 리포트 분리) -->
+      <div class="report-subject-bar" id="reportSubjectBar">
+        <!-- 동적으로 과목 버튼 생성 -->
       </div>
 
       <!-- 요약 통계 카드 3종 -->
@@ -215,12 +221,12 @@
         </div>
       </div>
 
-      <!-- 시험 유형 필터 탭 -->
-      <div class="report-filter-group">
-        <button class="report-filter-pill active" data-category="ALL">전체 보기</button>
-        <button class="report-filter-pill" data-category="VOCAB">📖 단어 시험</button>
-        <button class="report-filter-pill" data-category="UNIT">📝 단원 평가</button>
-        <button class="report-filter-pill" data-category="WRITING">🖋️ 서술형 영작</button>
+      <!-- 시험 유형/단원 필터 탭 (영어: 단어/서술형/단원평가, 타과목: 전체/단원별) -->
+      <div class="report-filter-group" id="reportFilterGroup">
+        <button class="report-filter-pill active" data-filter="ALL">전체 보기</button>
+        <button class="report-filter-pill" data-filter="VOCAB">📖 단어 시험</button>
+        <button class="report-filter-pill" data-filter="WRITING">🖋️ 서술형 영작</button>
+        <button class="report-filter-pill" data-filter="UNIT">📝 단원 평가</button>
       </div>
 
       <!-- 최근 시험 기록 테이블 -->
@@ -229,16 +235,19 @@
         <table class="report-table">
           <thead>
             <tr>
-              <th>응시 일시</th>
+              <th>완료 일시</th>
               <th>대단원</th>
               <th>시험 유형 / 회차</th>
+              <th>소요 시간</th>
               <th>점수</th>
               <th>정답 수</th>
               <th>별</th>
             </tr>
           </thead>
           <tbody id="reportRecordsBody">
-            <tr><td colspan="6" style="text-align:center; color:#9587B6;">기록을 불러오는 중...</td></tr>
+            <tr>
+              <td colspan="7" style="text-align:center; color:#9587B6;">기록을 불러오는 중...</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -257,24 +266,358 @@
             </tr>
           </thead>
           <tbody id="reportWrongLogsBody">
-            <tr><td colspan="5" style="text-align:center; color:#9587B6;">오답 기록이 없습니다.</td></tr>
+            <tr>
+              <td colspan="5" style="text-align:center; color:#9587B6;">오답 기록이 없습니다.</td>
+            </tr>
           </tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- 새 대단원 추가 모달 -->
-  <div class="modal-overlay" id="newLessonModal">
-    <div class="modal-card" style="max-width: 380px;">
-      <h3 style="font-size: 17px; font-weight: 900; color: #382B68; margin-bottom: 12px;">
-        📖 새 대단원 만들기
+  <!-- 새 단원 등록 팝업 모달 -->
+  <div class="modal-overlay" id="addLessonModal">
+    <div class="modal-card" style="max-width: 420px;">
+      <h3 style="font-size: 18px; font-weight: 900; color: #382B68; margin-bottom: 8px;">
+        ➕ 새 단원 등록하기
       </h3>
-      <input type="text" id="newLessonNameInput" class="subjective-input" 
-        placeholder="예: 4. A World of Opportunities" style="margin-bottom: 14px;">
+      <p style="font-size: 12px; color: #7B6E9E; margin-bottom: 12px;">
+        과목을 선택하고 학습할 대단원을 추가합니다.
+      </p>
+
+      <div style="margin-bottom: 10px;">
+        <label class="setting-label">과목 선택</label>
+        <select id="modalAddLessonSubject" class="drawer-select" style="width: 100%;">
+          <!-- Loaded dynamically -->
+        </select>
+      </div>
+
+      <!-- 영어 과목일 때 단원 등록 UI 통일: 카테고리 칩 숨김 -->
+      <div id="modalEnglishCategoryBox" style="display: none; margin-bottom: 10px;">
+        <label class="setting-label">단원 학습 유형</label>
+        <div style="display: flex; gap: 6px;">
+          <button type="button" class="lesson-cat-chip active" data-cat="VOCAB">📖 단어</button>
+          <button type="button" class="lesson-cat-chip" data-cat="WRITING">🖋️ 서술형</button>
+          <button type="button" class="lesson-cat-chip" data-cat="UNIT">📝 단원평가</button>
+        </div>
+        <input type="hidden" id="modalAddLessonCategory" value="VOCAB">
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <label class="setting-label">단원명 입력</label>
+        <input type="text" id="modalAddLessonTitle" class="subjective-input"
+          placeholder="예: 4. A World of Opportunities / 1단원 문학과 삶">
+      </div>
+
       <div style="display: flex; gap: 8px;">
-        <button class="action-btn btn-prev" id="btnCancelNewLesson" style="flex:1;">취소</button>
-        <button class="action-btn btn-next" id="btnSaveNewLesson" style="flex:1;">추가하기</button>
+        <button class="action-btn btn-prev" id="btnCancelAddLessonModal" style="flex:1;">취소</button>
+        <button class="action-btn btn-next" id="btnSubmitAddLessonModal" style="flex:1;">등록하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF 시험지 등록 모달 (단원평가 & 타과목 시험) -->
+  <div class="modal-overlay" id="pdfTestModal">
+    <div class="modal-card" style="max-width: 540px; max-height: 90vh; overflow-y: auto;">
+      <h3 style="font-size: 18px; font-weight: 900; color: #382B68; margin-bottom: 8px;">
+        📄 PDF 시험지 등록 (전체/단원평가)
+      </h3>
+      <p style="font-size: 12px; color: #7B6E9E; margin-bottom: 12px; line-height: 1.4;">
+        문제와 정답이 포함된 PDF를 올리면 정답 시작 페이지 앞까지 문제로 분리하고, 정답표와 해설을 자동 추출합니다.
+      </p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+        <div>
+          <label class="setting-label">과목 선택</label>
+          <select id="pdfTestSubjectSelect" class="drawer-select" style="width: 100%;">
+            <!-- Loaded dynamically -->
+          </select>
+        </div>
+        <div>
+          <label class="setting-label">단원 선택</label>
+          <select id="pdfTestLessonSelect" class="drawer-select" style="width: 100%;">
+            <option value="ALL_TESTS">⭐ [전체테스트] 전체 범위</option>
+            <!-- Loaded dynamically -->
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 8px;">
+        <label class="setting-label">시험지 제목</label>
+        <input type="text" id="pdfTestTitleInput" class="subjective-input"
+          placeholder="예: 3과 실전 단원평가 / 2024 국어 학평 전체테스트">
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr 1fr; gap: 6px; margin-bottom: 10px;">
+        <div>
+          <label class="setting-label">문제 시작p</label>
+          <input type="number" id="pdfTestStartPage" class="subjective-input" value="1" min="1">
+        </div>
+        <div>
+          <label class="setting-label" style="color: #6C52EE; font-weight:800;">정답 시작p (자동 감지)</label>
+          <input type="number" id="pdfTestAnswerPage" class="subjective-input" placeholder="자동 감지" min="1"
+            style="border-color:#6C52EE; background:#F8F6FF;">
+        </div>
+        <div>
+          <label class="setting-label">문제 끝p</label>
+          <input type="number" id="pdfTestEndPage" class="subjective-input" placeholder="자동 계산" min="1" readonly
+            style="background:#F7F6FB;">
+        </div>
+        <div>
+          <label class="setting-label">총 문항 수</label>
+          <input type="number" id="pdfTestTotalQuestions" class="subjective-input" placeholder="자동 감지" min="1">
+        </div>
+      </div>
+
+      <!-- PDF Dropzone -->
+      <div class="pdf-dropzone" id="pdfTestDropzone" style="margin-bottom: 10px;">
+        <span style="font-size: 26px;">📑</span>
+        <span style="font-size: 12px; font-weight: 700; color: #4A6EE0;">시험지 PDF 파일 끌어다 놓기</span>
+        <span style="font-size: 10.5px; color: #8C7FA9;">(클릭하거나 PDF 파일을 끌어다 놓으세요 · 정답표 자동 분석)</span>
+      </div>
+      <input type="file" id="pdfTestFileInput" accept=".pdf" style="display: none;">
+      <div id="pdfTestParseStatus" style="font-size: 11.5px; font-weight: 700; margin-bottom: 8px; display: none;">
+      </div>
+
+      <label class="setting-label" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>정답표 확인 및 빠른 수정 (1번 ~ N번)</span>
+        <span style="font-size: 10.5px; color: #8C7FA9;">PDF 자동 추출값</span>
+      </label>
+      <div id="pdfTestAnswerSheetGrid" class="pdf-answer-sheet-grid"
+        style="max-height: 140px; overflow-y: auto; margin-bottom: 14px;">
+        <!-- Dynamically rendered 1~N inputs -->
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button class="action-btn btn-prev" id="btnCancelPdfTest" style="flex:1;">취소</button>
+        <button class="action-btn btn-next" id="btnSavePdfTest" style="flex:1;">시험지 저장하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 해설 보기 모달 (텍스트 해설 + 2단 해설 이미지 뷰어) -->
+  <div class="modal-overlay" id="explanationModal">
+    <div class="modal-card modal-large"
+      style="max-width: 900px; max-height: 92vh; display: flex; flex-direction: column;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #E7E0F8; padding-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <h3 style="font-size: 17px; font-weight: 900; color: #382B68;" id="explModalTitle">
+            💡 시험 해설 및 정답 보기
+          </h3>
+          <div class="text-tabs" style="display: flex; gap: 4px;">
+            <button type="button" class="tab-btn active" id="btnExplTabText"
+              style="padding: 4px 10px; font-size: 12px;">📝 텍스트 해설</button>
+            <button type="button" class="tab-btn" id="btnExplTabImage" style="padding: 4px 10px; font-size: 12px;">📸 2단
+              해설지 이미지</button>
+          </div>
+        </div>
+        <button class="drawer-close-btn" id="btnCloseExplanationModal">✕</button>
+      </div>
+
+      <!-- 모드 1: 텍스트 해설 영역 -->
+      <div id="explTextContainer" style="flex: 1; overflow-y: auto; padding-right: 4px;">
+        <div id="explTextContent" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Dynamically populated question cards -->
+        </div>
+      </div>
+
+      <!-- 모드 2: 2단 슬라이스 해설 이미지 뷰어 영역 -->
+      <div id="explImageContainer" style="display: none; flex: 1; flex-direction: column; overflow: hidden;">
+        <div class="paper-controls-bar" style="margin-bottom: 8px;">
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button class="btn-micro" id="btnExplPrevCol">◀ 이전</button>
+            <button class="btn-micro" id="btnExplNextCol">다음 ▶</button>
+            <span class="status-badge badge-col-left" id="explColBadge">해설 P.1 [좌]</span>
+          </div>
+          <div class="slider-wrap">
+            <input type="range" id="explStepSlider" min="0" max="0" value="0">
+            <span id="explStepCounter" style="font-size: 0.8rem; color: #7B6E9E; min-width: 45px;">1 / 1</span>
+          </div>
+        </div>
+        <div class="viewer-container"
+          style="flex: 1; overflow: auto; text-align: center; background: #2D2254; border-radius: 8px; padding: 10px;">
+          <canvas id="explCropCanvas"
+            style="max-width: 100%; height: auto; box-shadow: 0 4px 16px rgba(0,0,0,0.4); border-radius: 4px; background: #fff;"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 단원 및 시험지 관리 모달 -->
+  <div class="modal-overlay" id="manageTestsModal">
+    <div class="modal-card modal-large"
+      style="max-width: 820px; max-height: 85vh; display: flex; flex-direction: column;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1.5px solid #F0EBF8; padding-bottom: 8px;">
+        <h3 style="font-size: 17px; font-weight: 900; color: #382B68;">
+          📋 단원 및 시험지 관리
+        </h3>
+        <button class="drawer-close-btn" id="btnCloseManageTestsModal">✕</button>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <label style="font-size:13px; font-weight:700; color:#5C4B99;">과목 필터:</label>
+          <select id="manageTestsSubjectSelect" class="main-header-select"
+            style="padding:4px 8px; font-size:13px;"></select>
+        </div>
+        <button class="action-btn btn-next" id="btnManageOpenAddPdfModal" style="padding:6px 12px; font-size:12.5px;">
+          ➕ 새 PDF 시험지 등록
+        </button>
+      </div>
+
+      <div class="report-table-scroll" style="flex:1; overflow-y:auto;">
+        <table class="report-table" style="width:100%;">
+          <thead>
+            <tr>
+              <th style="width:50px;">ID</th>
+              <th>시험지 제목</th>
+              <th style="width:100px;">과목명</th>
+              <th style="width:75px;">문항 수</th>
+              <th style="width:90px;">등록 일자</th>
+              <th style="width:80px; text-align:center;">관리</th>
+            </tr>
+          </thead>
+          <tbody id="manageTestsTableBody">
+            <tr>
+              <td colspan="6" style="text-align:center; padding:16px;">시험지 목록을 불러오는 중...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF 학습 자료 등록 모달 (단어장 vs 서술형 영작 분기) -->
+  <div class="modal-overlay" id="uploadChoiceModal">
+    <div class="modal-card" style="max-width: 480px;">
+      <h3 style="font-size: 18px; font-weight: 900; color: #382B68; margin-bottom: 6px;">
+        📑 PDF 학습 자료 등록
+      </h3>
+      <p style="font-size: 12px; color: #7B6E9E; margin-bottom: 14px; line-height: 1.4;">
+        등록할 단원과 학습 유형(단어장 또는 서술형 영작)을 선택한 후 PDF 파일을 업로드하세요.
+      </p>
+
+      <!-- 1. 단원 선택 -->
+      <div style="margin-bottom: 12px;">
+        <label class="setting-label">학습 대단원 선택</label>
+        <select id="uploadChoiceLessonSelect" class="drawer-select" style="width: 100%;">
+          <!-- 동적 로드 -->
+        </select>
+      </div>
+
+      <!-- 2. 등록 유형 선택 -->
+      <div style="margin-bottom: 14px;">
+        <label class="setting-label">등록 자료 유형</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button type="button" class="lesson-cat-chip active" id="btnTypeVocab" data-type="VOCAB"
+            style="padding: 10px 8px; font-size: 13px; font-weight: 800; text-align: center;">
+            📖 단어장 등록
+          </button>
+          <button type="button" class="lesson-cat-chip" id="btnTypeWriting" data-type="WRITING"
+            style="padding: 10px 8px; font-size: 13px; font-weight: 800; text-align: center;">
+            🖋️ 서술형 영작 등록
+          </button>
+        </div>
+        <input type="hidden" id="uploadChoiceType" value="VOCAB">
+      </div>
+
+      <!-- 3. PDF 파일 드롭존 & 선택 -->
+      <div style="margin-bottom: 14px;">
+        <label class="setting-label">PDF 파일 첨부</label>
+        <div id="uploadChoiceDropZone"
+          style="border: 2px dashed #B8AEDD; border-radius: 12px; padding: 22px 14px; text-align: center; background: #FBF9FE; cursor: pointer; transition: all 0.2s ease;">
+          <div style="font-size: 28px; margin-bottom: 6px;">📄</div>
+          <div id="uploadChoiceFileNotice" style="font-size: 12.5px; font-weight: 700; color: #5C4B99;">
+            클릭하여 PDF 선택 또는 파일 끌어다 놓기
+          </div>
+          <div style="font-size: 11px; color: #9C8EB9; margin-top: 4px;">
+            단어장 표 PDF 또는 'Level 2 영작 연습하기'가 포함된 PDF
+          </div>
+        </div>
+        <input type="file" id="uploadChoiceFileInput" accept=".pdf" style="display: none;">
+      </div>
+
+      <!-- 상태 안내 메시지 -->
+      <div id="uploadChoiceStatus"
+        style="font-size: 12px; font-weight: 700; margin-bottom: 12px; display: none; text-align: center;"></div>
+
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="action-btn btn-prev" id="btnCancelUploadChoiceModal" style="flex:1;">취소</button>
+        <button type="button" class="action-btn btn-next" id="btnSubmitUploadChoiceModal" style="flex:1;"
+          disabled>등록하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 서술형(영작) 직접 텍스트 일괄 등록 모달 -->
+  <div class="modal-overlay" id="writingDirectInputModal">
+    <div class="modal-card" style="max-width: 820px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <h3 style="font-size: 18px; font-weight: 900; color: #382B68;">
+          ✍️ 서술형(영작) 문제 일괄 텍스트 등록
+        </h3>
+        <button type="button" class="drawer-close-btn" id="btnCloseDirectWritingModal">✕</button>
+      </div>
+      <p style="font-size: 12px; color: #7B6E9E; margin-bottom: 12px; line-height: 1.4;">
+        한글 문제 전체와 영어 정답 전체를 각각 붙여넣으면 문항 번호(1., 2. ...)를 자동 분석하여 1:1 매칭 후 일괄 등록합니다.
+      </p>
+
+      <!-- 1. 단원 선택 -->
+      <div style="margin-bottom: 12px;">
+        <label class="setting-label">학습 대단원 선택</label>
+        <select id="directWritingLessonSelect" class="drawer-select" style="width: 100%;">
+          <!-- 동적 로드 -->
+        </select>
+      </div>
+
+      <!-- 2. 2분할 텍스트 입력 영역 -->
+      <div
+        style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; flex: 1; min-height: 220px;">
+        <!-- 좌측: 한글 문제 입력 -->
+        <div style="display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label class="setting-label" style="margin-bottom: 0;">📋 한글 문제 전체 (1~15번)</label>
+            <span id="koreanPromptCountBadge" style="font-size: 11px; font-weight: 800; color: #6C52EE;">0개 감지</span>
+          </div>
+          <textarea id="directWritingKoreanInput" class="subjective-input"
+            style="flex: 1; min-height: 200px; resize: vertical; font-size: 13px; line-height: 1.5; padding: 10px; font-family: inherit;"
+            placeholder="교재의 한글 문제 전체를 복사해서 붙여넣으세요.&#10;&#10;예시:&#10;1. 저희의 최신 전시인 '색채로 가득한 예술 이야기'를 거닐면서, 우리는 노랑, 파랑, 빨강의 세 가지 원색의 쓰임을...&#10;2. 눈을 크게 뜨고, 이야기에 귀를 기울이며, 색이 보여주는 감정을 느끼려고 해 보세요.&#10;3. 그는 37년이라는 짧은 생애 동안 900점이 넘는 그림을 그렸는데..."></textarea>
+        </div>
+
+        <!-- 우측: 영어 정답 입력 -->
+        <div style="display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label class="setting-label" style="margin-bottom: 0;">📋 영어 정답 전체 (1~15번)</label>
+            <span id="englishSentenceCountBadge" style="font-size: 11px; font-weight: 800; color: #16A34A;">0개 감지</span>
+          </div>
+          <textarea id="directWritingEnglishInput" class="subjective-input"
+            style="flex: 1; min-height: 200px; resize: vertical; font-size: 13px; line-height: 1.5; padding: 10px; font-family: inherit;"
+            placeholder="해설지의 영어 정답 전체를 복사해서 붙여넣으세요.&#10;&#10;예시:&#10;1. As we walk through our newest exhibition, Colorful Stories of Art, we will explore the use of the three primary colors...&#10;2. Open your eyes, listen to the stories, and try to feel the emotions that the colors show.&#10;3. He painted more than 900 paintings during his short life of 37 years..."></textarea>
+        </div>
+      </div>
+
+      <!-- 3. 실시간 매칭 상태 및 미리보기 영역 -->
+      <div id="directWritingPreviewArea"
+        style="background: #F8F6FD; border: 1.5px solid #EBE6F7; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="font-size: 12px; font-weight: 800; color: #4B3A72;">🔍 문항 1:1 매칭 미리보기</span>
+          <span id="directWritingMatchBadge"
+            style="font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: #E2E8F0; color: #64748B;">문항을
+            입력해주세요</span>
+        </div>
+        <div id="directWritingPreviewList"
+          style="max-height: 140px; overflow-y: auto; font-size: 12px; color: #4B3A72; border-top: 1px solid #ECE7F6; padding-top: 6px;">
+          <div style="text-align: center; color: #9C8EB9; padding: 12px;">한글 문제와 영어 정답을 입력하면 번호별 매칭 결과가 여기에 표시됩니다.</div>
+        </div>
+      </div>
+
+      <!-- 4. 하단 버튼 -->
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="action-btn btn-prev" id="btnCancelDirectWritingModal" style="flex: 1;">취소</button>
+        <button type="button" class="action-btn btn-next" id="btnSubmitDirectWriting" style="flex: 2;" disabled>🚀 영작 문제
+          일괄 등록하기</button>
       </div>
     </div>
   </div>
@@ -291,24 +634,34 @@
       <div class="ring-hole"></div>
     </div>
 
-    <!-- Mini Slim Header (완전 무음 & 40px 슬림 사이즈) -->
+    <!-- Mini Slim Header (좌측 3줄 햄버거 메뉴 및 메인 과목/단원/시험지 선택 바) -->
     <header class="app-header-slim">
       <div class="header-left">
-        <button id="drawerOpenBtn" class="menu-burger-btn" title="전체 메뉴 및 관리자">
-          <span>☰</span>
+        <button id="drawerOpenBtn" class="drawer-hamburger-btn" title="메뉴바 보이기/숨기기" aria-label="메뉴바 토글">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
         </button>
-        <span class="slim-title">MY SPECIAL ENGLISH</span>
-        <span class="slim-lesson-tag" id="headerLessonTag">3과 The Gift of Art</span>
+        <span class="slim-title">MY SPECIAL NOTE</span>
+
+        <!-- 메인 페이지 과목 및 단원 선택 바 + 시험지 선택 바 -->
+        <div class="main-selector-wrap" id="mainSelectorWrap">
+          <select id="mainSubjectSelect" class="main-header-select" title="과목 선택"></select>
+          <select id="mainLessonSelect" class="main-header-select" title="단원 선택"></select>
+          <select id="paperTestSelect" class="main-header-select paper-test-header-select" title="시험지 선택">
+            <option value="">-- 등록된 시험지를 선택하세요 --</option>
+          </select>
+        </div>
       </div>
 
       <div class="header-right">
-        <!-- Silent Icon Indicator (소리 없음) -->
-        <span class="silent-badge" title="클릭 소리 없는 독서실 무음 모드">🔕 무음</span>
-        <!-- Star Badge -->
-        <div class="slim-star-badge" id="headerStarBadge" title="모은 별 보관함">
-          <span>⭐️</span>
-          <span id="headerStarCount">0</span>
-        </div>
+        <span class="slim-lesson-tag" id="headerLessonTag" style="display:none;"></span>
+        <button id="btnOpenSettings" class="header-settings-btn" title="학습 설정 및 관리" aria-label="설정 열기">
+          ⚙️ 설정
+        </button>
       </div>
     </header>
 
@@ -320,11 +673,11 @@
       <button class="tab-btn" data-tab="test" role="tab" id="tabBtnTest">
         <span>✍️</span> 주관식 단어 시험
       </button>
+      <button class="tab-btn" data-tab="paper_test" role="tab" id="tabBtnPaperTest">
+        <span>🖋️</span> 서술형 영작
+      </button>
       <button class="tab-btn" data-tab="ranking" data-tab-name="ranking" role="tab" id="tabBtnRanking">
         <span>🔥</span> 취약 단어 분석
-      </button>
-      <button class="tab-btn" data-tab="mistakes" role="tab" id="tabBtnMistakes">
-        <span>📝</span> 회차별 오답 노트
       </button>
       <button class="tab-btn" data-tab="final_mistakes" role="tab" id="tabBtnFinalMistakes">
         <span>🖨️</span> 파이널 오답 단어장
@@ -389,24 +742,13 @@
         </div>
       </div>
 
-      <!-- 2-Part Switcher (1~20번 vs 21~40번) -->
-      <div class="test-part-nav" id="testPartNav">
-        <button class="part-tab-btn active" data-part="1">
-          <span>🌸</span> 1구간 (1~20번)
-        </button>
-        <button class="part-tab-btn" data-part="2">
-          <span>🍓</span> 2구간 (21~40번)
-        </button>
-      </div>
-
       <div class="test-guide-banner">
-        💡 <b>스마트 채점:</b> 쉼표로 나열된 뜻 중 <b>한 가지만 써도 정답</b>이며, <b>띄어쓰기 및 사소한 오타</b>도 너그럽게 정답 인정됩니다!
+        💡 <b>스마트 채점:</b> 쉼표로 나열된 뜻 중 <b>한 가지만 써도 정답</b>이며, <b>Enter 키</b>를 누르면 다음 입력창으로 자동 이동합니다!
       </div>
 
-      <!-- 2 Columns Container -->
-      <div class="test-columns-container">
-        <div class="test-col" id="testColLeft"></div>
-        <div class="test-col" id="testColRight"></div>
+      <!-- Single Page Row-based Test Container -->
+      <div class="test-rows-container" id="testRowsContainer">
+        <!-- Dynamically rendered rows (Q1 ~ Q40 한 줄 형태) -->
       </div>
 
       <!-- Submit Panel -->
@@ -416,6 +758,250 @@
         </button>
         <div style="font-size: 12px; color: #8C80AF; font-weight: 600;">
           * 60점 이상 별 1개 + 10점마다 별 1개 추가 (최대 5개)
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: 서술형 영작 (영어) & 타과목 PDF 시험지 -->
+    <section id="tab-paper_test" class="tab-content" role="tabpanel">
+      <!-- 🖋️ 영어 서술형 영작 풀이 컨테이너 -->
+      <div id="writingContainer" style="display: none; width: 100%;">
+        <!-- 등록된 서술형 문제가 없을 때 Empty State -->
+        <div id="writingEmptyState" class="paper-empty-card" style="display: block;">
+          <div style="font-size: 36px; margin-bottom: 8px;">🖋️</div>
+          <h4 style="font-size: 16px; font-weight: 800; color: #4B3A72; margin-bottom: 6px;">등록된 서술형 영작 문제가 없습니다</h4>
+          <p style="font-size: 13px; color: #7B6E9E; margin-bottom: 14px;">사이드바 메뉴의 [📖 단어장 PDF 등록]에서 '서술형 영작 등록'을 선택하여
+            교재 PDF를 등록해보세요!</p>
+          <button class="drawer-action-btn" id="btnOpenWritingPdfModalDirect" style="max-width: 260px; margin: 0 auto;">
+            ➕ 서술형 영작 PDF 등록하기
+          </button>
+        </div>
+
+        <!-- 서술형 인터랙티브 풀이 카드 -->
+        <div id="writingActiveCard" class="writing-card-layout" style="display: none;">
+          <!-- 1. 상단 헤더: Q 1 / 15, 단원 타이틀, [◀ 이전], [다음 ▶] -->
+          <div class="writing-header">
+            <div class="writing-header-left">
+              <span class="writing-q-badge" id="writingQBadge">Q 1 / 15</span>
+              <span class="writing-lesson-title" id="writingLessonTitle">단원명</span>
+            </div>
+            <div class="writing-header-nav">
+              <button type="button" class="btn-micro" id="btnWritingPrev" title="이전 문제">◀ 이전</button>
+              <button type="button" class="btn-micro" id="btnWritingNext" title="다음 문제">다음 ▶</button>
+            </div>
+          </div>
+
+          <!-- 2. 한글 문제 카드 (큼직한 한글 문장 + 우측 마이크 버튼) -->
+          <div class="writing-prompt-card">
+            <div class="writing-prompt-text" id="writingKoreanPrompt">
+              문제를 불러오는 중입니다...
+            </div>
+            <div class="writing-mic-wrap">
+              <button type="button" id="btnWritingMic" class="writing-mic-btn" title="음성으로 영어 말하기 (STT)">
+                🎙️
+              </button>
+              <span id="writingMicStatus" class="writing-mic-status">음성 입력</span>
+            </div>
+          </div>
+
+          <!-- 3. 단어별 밑줄 입력 슬롯 영역 -->
+          <div class="writing-slots-container" id="writingSlotsContainer">
+            <!-- 단어별 input 슬롯이 동적으로 배치됨 -->
+          </div>
+
+          <!-- 4. 실시간 피드백 및 정답 안내 박스 -->
+          <div id="writingFeedbackBox" class="writing-feedback-box" style="display: none;">
+            <div class="writing-feedback-header" id="writingFeedbackTitle"></div>
+            <div class="writing-correct-answer" id="writingCorrectAnswer"></div>
+          </div>
+
+          <!-- 5. 하단 컨트롤 버튼 바: [💡 힌트 보기], [🔄 다시 쓰기], [✅ 채점하기] -->
+          <div class="writing-action-bar">
+            <button type="button" class="action-btn btn-prev" id="btnWritingHint">💡 힌트 보기</button>
+            <button type="button" class="action-btn btn-prev" id="btnWritingReset">🔄 다시 쓰기</button>
+            <button type="button" class="action-btn btn-next" id="btnWritingGrade">✅ 채점하기</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty state when no test is selected (타과목) -->
+      <div id="paperTestEmptyState" class="paper-empty-card" style="display: block;">
+        <div style="font-size: 36px; margin-bottom: 8px;">📄</div>
+        <h4 style="font-size: 16px; font-weight: 800; color: #4B3A72; margin-bottom: 6px;">선택된 PDF 시험지가 없습니다</h4>
+        <p style="font-size: 13px; color: #7B6E9E; margin-bottom: 14px;">상단 헤더에서 시험지를 선택하거나, 설정 메뉴에서 새 PDF 시험지를 등록해보세요!
+        </p>
+        <button class="drawer-action-btn" id="btnOpenPdfModalDirect" style="max-width: 260px; margin: 0 auto;">
+          ➕ 새 PDF 시험지 등록하기
+        </button>
+      </div>
+
+      <!-- Active Test Running View (2단 분할 뷰어 + 패드 필기 + OMR 카드) -->
+      <div id="paperTestActiveArea" style="display: none;">
+        <!-- 메인 2분할 레이아웃: 좌측 시험지+필기 (가로맞춤), 우측 OMR 카드 -->
+        <div class="paper-split-grid">
+          <!-- 좌측: 문제 시험지 뷰어 (시험 중: 기본 뷰 / 해설 보기 시: 해설지 뷰어와 동일한 형태로 전환) -->
+          <div class="paper-viewer-panel">
+            <!-- 1) 시험 응시 중 상단바 (기존 뷰 형태) -->
+            <div id="viewerExamHeader"
+              style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; background:#F4EFEA; padding:4px 10px; border-radius:8px; border:1px solid #E6DEC9;">
+              <div style="font-size:12px; font-weight:800; color:#5C4B99;" id="paperViewerExamTitle">📄 시험지 문제 뷰어</div>
+              <div class="zoom-toolbar" style="display:flex; align-items:center; gap:4px;">
+                <button type="button" class="btn-micro" id="btnZoomOut" title="시험지 축소">🔍 -</button>
+                <span id="zoomLevelText"
+                  style="font-size:11.5px; font-weight:800; color:#4B3A72; min-width:42px; text-align:center;">100%</span>
+                <button type="button" class="btn-micro" id="btnZoomIn" title="시험지 확대">🔍 +</button>
+                <button type="button" class="btn-micro" id="btnZoomReset" title="100% 기본 맞춤">맞춤</button>
+              </div>
+            </div>
+
+            <!-- 2) 해설 보기 모드 전용 상단 헤더 (해설 보기 클릭 시에만 표시) -->
+            <!-- 2) 해설 보기 모드 전용 상단 헤더 (해설 보기 클릭 시에만 표시) -->
+            <div id="viewerExplHeader" class="omr-top-controls"
+              style="display:none; background:#F4EFEA; border-bottom:1.5px solid #E6DEC9; margin-bottom:6px; border-radius:8px; justify-content:space-between; flex-shrink:0;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span id="paperResultScoreBadge"
+                  style="display:none; font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px; background:#6C52EE; color:#fff;"></span>
+              </div>
+              <div class="zoom-toolbar" style="display:flex; align-items:center; gap:3px;">
+                <button type="button" class="btn-micro" id="btnZoomOutDual" title="시험지 축소">🔍-</button>
+                <span id="zoomLevelTextDual"
+                  style="font-size:11px; font-weight:800; color:#4B3A72; min-width:38px; text-align:center;">100%</span>
+                <button type="button" class="btn-micro" id="btnZoomInDual" title="시험지 확대">🔍+</button>
+                <button type="button" class="btn-micro" id="btnZoomResetDual" title="100% 맞춤">맞춤</button>
+              </div>
+            </div>
+
+            <!-- 3) 해설 보기 모드 전용 탐색 툴바 (해설 보기 클릭 시에만 표시) -->
+            <div id="viewerExplToolbar" class="omr-pen-toolbar"
+              style="display:none; margin-bottom:8px; border-radius:8px; flex-shrink:0;">
+              <button type="button" class="btn-micro" id="btnViewerPrevCol">◀ 이전</button>
+              <div class="slider-wrap" style="flex:1;">
+                <input type="range" id="viewerStepSlider" min="0" max="0" value="0">
+                <span id="viewerStepCounter" style="font-size: 0.8rem; color: #7B6E9E; min-width: 45px;">1 / 1</span>
+              </div>
+              <button type="button" class="btn-micro" id="btnViewerNextCol">다음 ▶</button>
+            </div>
+
+            <!-- 스크롤 가능한 캔버스 본문 영역 (헤더/툴바는 상단 고정) -->
+            <div class="paper-viewer-body" id="paperViewerBody"
+              style="flex:1; overflow-y:auto; overflow-x:auto; min-height:0; width:100%; -webkit-overflow-scrolling:touch;">
+              <div class="canvas-stack-wrapper" id="canvasStackWrapper">
+                <canvas id="cropCanvas"></canvas>
+                <canvas id="drawCanvas" class="draw-overlay-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- 우측: OMR ANSWER SHEET 카드 -->
+          <div class="paper-omr-panel">
+            <!-- OMR 카드 상단: [◀ 이전] + [시간] -->
+            <div class="omr-top-controls">
+              <button class="btn-micro" id="btnPaperPrevCol" title="이전 (좌방향키)">◀ 이전</button>
+              <div class="paper-timer-badge" id="paperTimerBadge">
+                <span>⏱️</span> <span id="paperTimerText">00:00</span>
+              </div>
+            </div>
+
+            <!-- OMR 카드 연필 선택 툴바 (이전단 바로 밑) -->
+            <div class="omr-pen-toolbar">
+              <div class="pen-toolbar" id="penToolbar">
+                <button type="button" class="pen-tool-btn active" id="btnPenBlack" data-color="#111827" data-width="2"
+                  title="검정펜">✏️</button>
+                <button type="button" class="pen-tool-btn" id="btnPenBlue" data-color="#2563EB" data-width="2"
+                  title="파랑펜">🔵</button>
+                <button type="button" class="pen-tool-btn" id="btnPenRed" data-color="#DC2626" data-width="2"
+                  title="빨강펜">🔴</button>
+                <button type="button" class="pen-tool-btn" id="btnPenHighlighter" data-color="#FDE047" data-width="16"
+                  title="형광펜">🖍️</button>
+                <button type="button" class="pen-tool-btn" id="btnPenEraser" title="지우개">🧹</button>
+                <button type="button" class="pen-tool-btn" id="btnPenClear" title="단 필기 전체 지우기">🗑️</button>
+              </div>
+              <div class="slider-wrap">
+                <input type="range" id="paperStepSlider" min="0" max="0" value="0">
+                <span id="paperStepCounter" style="font-size: 0.8rem; color: #7B6E9E; min-width: 40px;">1 / 1</span>
+              </div>
+            </div>
+
+            <!-- OMR 카드 헤더 -->
+            <div class="omr-card-header">
+              <div>
+                <div class="omr-card-title">OMR ANSWER SHEET</div>
+                <div style="font-size: 11px; color: #78716c;">실전 시험 모드</div>
+              </div>
+              <div class="omr-info-pill" id="omrExamStatus">응시 중</div>
+            </div>
+
+            <!-- OMR 문항 마킹 리스트 (최대한 크게) -->
+            <div class="omr-sheet-body" id="paperOmrSheetBody">
+              <!-- 동적으로 1~N 문항 행 생성 -->
+            </div>
+
+            <!-- OMR 카드 하단: [마킹 진행률] + [다음 ▶ & 최종 제출 나란히] -->
+            <div class="omr-bottom-controls">
+              <!-- 마킹 진행 바 -->
+              <div class="omr-progress-wrap">
+                <div class="omr-progress-labels">
+                  <span>마킹 진행률</span>
+                  <span id="paperOmrProgressLabel">0 / 20 (0%)</span>
+                </div>
+                <div class="omr-progress-bar">
+                  <div class="omr-progress-fill" id="paperOmrProgressFill" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <!-- 다음 단 버튼과 답안 제출 버튼 나란히 -->
+              <div class="omr-actions-row">
+                <button class="btn-next-col-full" id="btnPaperNextCol" title="다음 (우방향키)">
+                  다음 ▶
+                </button>
+                <button class="action-btn btn-submit-paper" id="btnSubmitPaperTest">
+                  ✨ 최종 답안 제출
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 우측 50%: 정답 및 해설지 2분할 뷰어 패널 (채점 후 해설보기 클릭 시 활성화) -->
+          <div class="paper-omr-panel paper-expl-panel" id="paperExplSplitPanel" style="display: none;">
+            <!-- 해설 패널 상단: [🔙 해설 닫기] + [탭: 이미지 vs 텍스트] -->
+            <div class="omr-top-controls" style="background:#ECE7FF; border-bottom:1.5px solid #D6CCF8;">
+              <button class="btn-micro" id="btnCloseDualExpl"
+                style="background:#5C48B0; color:#fff; font-weight:800;">🔙 시험 종료 / 목록으로</button>
+              <div style="display:flex; gap:4px; align-items:center;">
+                <button type="button" class="btn-micro" id="btnReopenWrongNoteModal"
+                  style="background:#7C3AED; color:#fff; font-weight:800; display:none;" title="틀린문제 오답노트 작성창 열기">📝
+                  오답노트</button>
+                <button type="button" class="btn-micro active" id="btnDualExplTabImg" title="해설지 원본 이미지">📸 이미지</button>
+                <button type="button" class="btn-micro" id="btnDualExplTabTxt" title="문항별 정답 및 텍스트 해설">📝 텍스트</button>
+              </div>
+            </div>
+
+            <!-- 해설 이미지 탐색 툴바 -->
+            <div class="omr-pen-toolbar" id="dualExplImgToolbar">
+              <button class="btn-micro" id="btnDualExplPrevCol">◀ 이전</button>
+              <div class="slider-wrap" style="flex:1;">
+                <input type="range" id="dualExplStepSlider" min="0" max="0" value="0">
+                <span id="dualExplStepCounter" style="font-size: 0.8rem; color: #7B6E9E; min-width: 45px;">1 / 1</span>
+              </div>
+              <button class="btn-micro" id="btnDualExplNextCol">다음 ▶</button>
+            </div>
+
+            <!-- 해설 컨텐츠 영역 -->
+            <div style="flex:1; overflow:hidden; padding:8px; display:flex; flex-direction:column; min-height:0;">
+              <!-- 이미지 뷰어 -->
+              <div id="dualExplImgContainer"
+                style="display:block; text-align:center; background:#2D2254; border-radius:8px; padding:6px; flex:1; overflow:auto;">
+                <canvas id="dualExplCropCanvas"
+                  style="max-width:100%; height:auto; border-radius:4px; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.35);"></canvas>
+              </div>
+
+              <!-- 텍스트/문항별 정답 뷰어 -->
+              <div id="dualExplTxtContainer"
+                style="display:none; flex:1; overflow-y:auto; padding:4px; flex-direction:column; gap:8px;">
+                <!-- 문항별 결과 및 해설 카드들 동적 렌더링 -->
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -439,22 +1025,7 @@
       <div id="rankingTableContainer" class="ranking-table-box"></div>
     </section>
 
-    <!-- TAB 4: 회차별 오답 노트 -->
-    <section id="tab-mistakes" class="tab-content" role="tabpanel">
-      <div style="margin-bottom: 12px;">
-        <h2 style="font-size: 18px; font-weight: 900; color: #382B68; margin-bottom: 4px;">
-          📝 회차별 오답 보관함
-        </h2>
-        <p style="font-size: 13px; color: #7E739B;">
-          회차별로 틀린 단어를 모아보고 다시 풀어보세요!
-        </p>
-      </div>
-
-      <div class="mistakes-round-selector" id="mistakesRoundButtons"></div>
-      <div id="mistakesContainer"></div>
-    </section>
-
-    <!-- TAB 5: 내신 대비 파이널 오답 단어장 (인쇄 최적화) -->
+    <!-- TAB 4: 내신 대비 파이널 오답 단어장 (인쇄 최적화) -->
     <section id="tab-final_mistakes" class="tab-content" role="tabpanel">
       <div class="final-mistakes-header">
         <div>
@@ -509,24 +1080,197 @@
 
       <!-- Result Action Options -->
       <div class="modal-actions">
-        <button class="action-btn btn-next" id="modalBtnRetakeWrong">
-          🔥 틀린 단어만 바로 다시 풀기
+        <button class="action-btn btn-next" id="modalBtnExplanation"
+          style="background: #6C52EE; color: #fff; width: 100%; margin-bottom: 6px;">
+          💡 정답 및 해설 보기 (문제와 함께 2분할 확인)
         </button>
         <button class="action-btn btn-prev" id="modalBtnRetakeAll">
           🔄 모든 문제 다시 풀기
         </button>
         <button class="action-btn btn-reset" id="modalBtnStudy">
-          📖 단어장으로 돌아가기
+          📖 메인으로 돌아가기
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Scripts -->
-  <script src="words.js"></script>
-  <script src="grading.js"></script>
-  <script src="supabaseClient.js"></script>
-  <script src="pdfParser.js"></script>
-  <script src="app.js"></script>
+  <!-- 플로팅 / 드래그 틀린문제 오답노트 작성창 -->
+  <div id="floatingWrongNoteModal" class="floating-wrong-modal" style="display: none;">
+    <!-- 상단 드래그 헤더 바 -->
+    <div class="floating-wrong-header" id="floatingWrongHeader">
+      <div class="floating-wrong-title-box">
+        <span class="floating-drag-icon" title="마우스나 터치로 드래그하여 이동">⠿</span>
+        <span style="font-weight: 900; font-size: 13.5px; color: #382B68;">📝 틀린문제 오답노트</span>
+        <span id="floatingWrongTestTitle" class="floating-test-sub">-</span>
+      </div>
+      <div class="floating-wrong-header-actions">
+        <button type="button" class="btn-micro-icon" id="btnMinimizeWrongNote" title="최소화 / 펼치기">_</button>
+        <button type="button" class="btn-micro-icon btn-close-x" id="btnCloseWrongNote" title="닫기">✕</button>
+      </div>
+    </div>
+
+    <!-- 접을 수 있는 메인 본문 -->
+    <div class="floating-wrong-body" id="floatingWrongBody">
+      <!-- 상단 틀린 문항 탭 목록 -->
+      <div class="floating-wrong-tabs-wrap">
+        <span class="floating-wrong-tabs-label">틀린 문항:</span>
+        <div class="floating-wrong-tabs" id="floatingWrongTabs">
+          <!-- [3번] [7번] [12번] ... 동적 렌더링 -->
+        </div>
+      </div>
+
+      <!-- 선택된 문항 오답노트 작성 영역 -->
+      <div class="floating-wrong-content" id="floatingWrongContent">
+        <div class="floating-q-info-row">
+          <div class="q-badge-main" id="floatingQNumBadge">Q-</div>
+          <div class="q-info-answers">
+            <div class="answer-pill wrong">
+              <span class="pill-label">내가 쓴 오답:</span>
+              <span id="floatingUserAnswerText" class="pill-value">-</span>
+            </div>
+            <div class="answer-pill correct">
+              <span class="pill-label">실제 정답:</span>
+              <span id="floatingCorrectAnswerText" class="pill-value">-</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="floating-input-wrap">
+          <div class="floating-note-label-row">
+            <label for="floatingWrongNoteInput" class="floating-note-label">
+              💡 오답 이유 / 핵심 개념 / 복습 메모:
+            </label>
+            <span id="floatingNoteSaveStatus" class="floating-save-status"></span>
+          </div>
+          <textarea id="floatingWrongNoteInput" class="floating-note-textarea" rows="3"
+            placeholder="왜 틀렸는지, 헷갈렸던 핵심 개념이나 꼭 기억해야 할 풀이법을 메모해 보세요!"></textarea>
+        </div>
+
+        <div class="floating-footer-row"
+          style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+          <div style="font-size: 11.5px; color: #7B6E9E;" id="floatingSavedBadgeHint">
+            저장 시 번호 배지에 ✓ 표시가 추가됩니다.
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button type="button" class="action-btn" id="btnSaveWrongNote"
+              style="background:#ECE7FF; color:#5C48B0; padding:6px 10px; font-size:12px; font-weight:700;">
+              💾 해당 문항 저장
+            </button>
+            <button type="button" class="action-btn btn-save-wrong-note" id="btnSaveAllWrongNotes"
+              style="background:#6C52EE; color:#fff; padding:6px 14px; font-size:12px; font-weight:800;">
+              ✨ 작성한 오답 일괄 저장 및 닫기
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 설정 내 오답노트 관리 모달 -->
+  <div class="modal-overlay" id="wrongNotesManageModal">
+    <div class="modal-card modal-large"
+      style="max-width: 960px; max-height: 88vh; display: flex; flex-direction: column;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1.5px solid #F0EBF8; padding-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 22px;">📝</span>
+          <div>
+            <h3 style="font-size: 17px; font-weight: 900; color: #382B68; margin: 0;">
+              오답노트 관리
+            </h3>
+            <span style="font-size: 12px; color: #7B6E9E;">오답을 복습하고, 전체범위 시험의 오답을 세부 단원으로 이동 및 분류할 수 있습니다.</span>
+          </div>
+        </div>
+        <button class="drawer-close-btn" id="btnCloseWrongNotesManageModal">✕</button>
+      </div>
+
+      <!-- 필터 바 -->
+      <div
+        style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; background: #F8F6FF; border: 1px solid #ECE7FF; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 12.5px; font-weight: 700; color: #5C4B99;">과목:</label>
+            <select id="wrongManageSubjectSelect" class="main-header-select"
+              style="padding: 4px 10px; font-size: 13px; min-width: 90px;"></select>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 12.5px; font-weight: 700; color: #5C4B99;">단원 필터:</label>
+            <select id="wrongManageLessonSelect" class="main-header-select"
+              style="padding: 4px 10px; font-size: 13px; max-width: 200px;"></select>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 12.5px; font-weight: 700; color: #5C4B99;">테스트지:</label>
+            <select id="wrongManageTestSelect" class="main-header-select"
+              style="padding: 4px 10px; font-size: 13px; max-width: 220px;">
+              <option value="ALL">전체 테스트지</option>
+            </select>
+            <button type="button" class="btn-micro" id="btnEditWrongNotesForTest"
+              style="background:#6C52EE; color:#fff; font-weight:700; padding:4px 8px; display:none;"
+              title="선택한 시험지의 오답노트 작성/수정 창 열기">
+              ✏️ 오답노트 수정
+            </button>
+          </div>
+        </div>
+        <div id="wrongManageCountTag" class="status-badge"
+          style="background: #ECE7FF; color: #5C48B0; font-weight: 800;">
+          총 0건
+        </div>
+      </div>
+
+      <!-- 오답 목록 테이블 -->
+      <div class="report-table-scroll"
+        style="flex: 1; overflow-y: auto; border: 1px solid #EBE6F5; border-radius: 8px;">
+        <table class="report-table" style="width: 100%; min-width: 780px;">
+          <thead>
+            <tr>
+              <th style="width: 60px;">과목</th>
+              <th style="width: 140px;">단원</th>
+              <th style="width: 130px;">시험명 / 출처</th>
+              <th style="width: 65px; text-align: center;">문항</th>
+              <th style="width: 130px;">내 답안 / 정답</th>
+              <th>작성한 오답노트 내용</th>
+              <th style="width: 140px; text-align: center;">단원 변경 / 삭제</th>
+            </tr>
+          </thead>
+          <tbody id="wrongNotesTableBody">
+            <tr>
+              <td colspan="7" style="text-align:center; padding:20px; color:#9CA3AF;">오답노트를 불러오는 중...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 오답노트 단원 변경 모달 -->
+  <div class="modal-overlay" id="changeWrongNoteLessonModal">
+    <div class="modal-card" style="max-width: 420px;">
+      <div
+        style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #eee; padding-bottom:8px;">
+        <h4 style="font-size:16px; font-weight:900; color:#382B68; margin:0;">📂 오답 문항 단원 이동</h4>
+        <button class="drawer-close-btn" id="btnCloseChangeWrongLessonModal">✕</button>
+      </div>
+      <p style="font-size:12.5px; color:#6B7280; margin-bottom:12px;" id="changeWrongLessonPromptText">
+        이 문항을 이동할 세부 단원을 선택해주세요.
+      </p>
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px; font-weight:700; color:#4B5563; display:block; margin-bottom:4px;">이동할 단원:</label>
+        <select id="selectTargetWrongLesson" class="subjective-input"
+          style="width:100%; font-size:13px; padding:8px 10px;"></select>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="action-btn btn-prev" id="btnCancelChangeWrongLesson" style="flex:1;">취소</button>
+        <button class="action-btn btn-next" id="btnConfirmChangeWrongLesson" style="flex:1;">단원 이동 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts (Cache Buster v8) -->
+  <script src="words.js?v=11"></script>
+  <script src="grading.js?v=11"></script>
+  <script src="supabaseClient.js?v=11"></script>
+  <script src="pdfParser.js?v=11"></script>
+  <script src="app.js?v=11"></script>
 </body>
+
 </html>
