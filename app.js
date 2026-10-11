@@ -1850,6 +1850,8 @@ function renderPaperTestSelect() {
 }
 
 async function initPaperTestSession() {
+  const writingWrap = document.getElementById('writingContainer');
+  if (writingWrap) writingWrap.style.display = 'none';
   await loadPdfTests(APP_STATE.currentSubject);
 }
 
@@ -1877,6 +1879,8 @@ async function startPaperTest(testId) {
   const examTitleEl = document.getElementById('paperViewerExamTitle');
   if (examTitleEl) examTitleEl.textContent = `📄 ${test.title}`;
 
+  const writingWrap = document.getElementById('writingContainer');
+  if (writingWrap) writingWrap.style.display = 'none';
   const emptyState = document.getElementById('paperTestEmptyState');
   const activeArea = document.getElementById('paperTestActiveArea');
   if (emptyState) emptyState.style.display = 'none';
