@@ -420,8 +420,14 @@ function renderStudyPage() {
 
   if (currentWords.length === 0) {
     grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #8C7FA9;">
-      등록된 단어가 없습니다. 사이드바 메뉴에서 단어장 PDF를 등록해주세요.
+      등록된 단어가 없습니다.<br/>
+      <button class="drawer-action-btn" id="btnOpenDirectVocabModalEmpty" style="margin-top: 12px; max-width: 220px; display: inline-block;">
+        📝 단어장 직접 등록하기
+      </button>
     </div>`;
+    document.getElementById('btnOpenDirectVocabModalEmpty')?.addEventListener('click', () => {
+      openDirectVocabModal();
+    });
     return;
   }
 
@@ -1326,7 +1332,7 @@ function setupSettingsDrawer() {
   const uploadVocabBtn = document.getElementById('btnUploadVocabPdf');
   if (uploadVocabBtn) {
     uploadVocabBtn.addEventListener('click', () => {
-      openUploadChoiceModal('VOCAB');
+      openDirectVocabModal();
     });
   }
 
@@ -1565,9 +1571,9 @@ function setupUploadChoiceModal() {
 
   // 유형 전환
   btnVocab?.addEventListener('click', () => {
-    btnVocab.classList.add('active');
-    btnWriting?.classList.remove('active');
-    if (typeInput) typeInput.value = 'VOCAB';
+    modal.classList.remove('open');
+    const curLessonId = document.getElementById('uploadChoiceLessonSelect')?.value;
+    openDirectVocabModal(curLessonId);
   });
 
   btnWriting?.addEventListener('click', () => {
@@ -1871,6 +1877,277 @@ function setupDirectWritingModal() {
       alert('서술형 영작 등록 실패: ' + err.message);
       submitBtn.disabled = false;
       submitBtn.textContent = '🚀 영작 문제 일괄 등록하기';
+    }
+  });
+}
+
+// --------------------------------------------------------
+// 단어장 직접 텍스트 일괄 등록 모달 로직 (단어 뜻 줄바꿈 포맷)
+// --------------------------------------------------------
+let cachedParsedDirectVocab = [];
+
+function parseDirectVocabText(rawText) {
+  if (!rawText || typeof rawText !== 'string') return [];
+  const lines = rawText.split(/\r?\n/);
+  const knownPosList = ['형', '명', '동', '부', '동/명', '명/동', '숙어', '대', '전', '접', 'v', 'n', 'a', 'adv'];
+  const result = [];
+  let currentNo = 1;
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+    if (!line) continue;
+
+    // 1. 번호 접두어 감지 및 제거 (예: "1. ", "1) ", "[1] ", "1 ")
+    const numPrefix = line.match(/^\[?\s*(\d{1,3})\s*[\.\)\]\s]\s*(.*)$/);
+    if (numPrefix) {
+      currentNo = parseInt(numPrefix[1], 10);
+      line = numPrefix[2].trim();
+    }
+
+    if (!line) continue;
+
+    // 따옴표 정규화
+    line = line.replace(/[’‘]/g, "'");
+
+    let word = '';
+    let pos = '';
+    let meaning = '';
+
+    // 2. 한글 시작 지점 탐색
+    const korIdx = line.search(/[가-힣]/);
+    if (korIdx !== -1) {
+      let beforeKor = line.slice(0, korIdx).trim();
+      let fromKor = line.slice(korIdx).trim();
+
+      // beforeKor 내에서 품사 토큰 감지
+      const tokens = beforeKor.split(/\s+/);
+      let foundPosIdx = -1;
+      for (let t = 0; t < tokens.length; t++) {
+        const tk = tokens[t].replace(/[()[\]]/g, '');
+        if (knownPosList.includes(tk)) {
+          pos = tk;
+          foundPosIdx = t;
+          break;
+        }
+      }
+
+      if (foundPosIdx !== -1) {
+        word = tokens.slice(0, foundPosIdx).join(' ').trim();
+      } else {
+        // 품사가 없으면 beforeKor가 단어. 단, 끝에 '~'가 붙어있으면 한글 뜻 접두사(~을, ~를 등)로 이동
+        if (beforeKor.endsWith('~')) {
+          beforeKor = beforeKor.slice(0, -1).trim();
+          fromKor = '~' + fromKor;
+        }
+        word = beforeKor;
+      }
+      meaning = fromKor;
+    } else {
+      // 한글이 없는 경우 탭 또는 연속 공백으로 분리 시도
+      const tabIdx = line.indexOf('\t');
+      if (tabIdx !== -1) {
+        word = line.slice(0, tabIdx).trim();
+        meaning = line.slice(tabIdx + 1).trim();
+      } else {
+        const parts = line.split(/\s{2,}/);
+        if (parts.length >= 2) {
+          word = parts[0].trim();
+          meaning = parts.slice(1).join(' ').trim();
+        } else {
+          word = line;
+          meaning = line;
+        }
+      }
+    }
+
+    // 앞뒤 불필요 기호 정리
+    word = word.replace(/^~+|~+$/g, '').trim();
+    meaning = meaning.replace(/\s+/g, ' ').trim();
+
+    if (!pos) {
+      pos = word.includes(' ') ? '숙어' : '기타';
+    }
+
+    if (word) {
+      result.push({
+        word_no: currentNo,
+        word: word,
+        pos: pos,
+        meaning: meaning || word,
+        eng_def: ''
+      });
+      currentNo++;
+    }
+  }
+
+  return result;
+}
+
+window.parseDirectVocabText = parseDirectVocabText;
+
+function openDirectVocabModal(lessonId = null) {
+  const modal = document.getElementById('directVocabModal');
+  const sel = document.getElementById('directVocabLessonSelect');
+  const textInput = document.getElementById('directVocabTextInput');
+  const countBadge = document.getElementById('directVocabCountBadge');
+  const statusBadge = document.getElementById('directVocabStatusBadge');
+  const previewList = document.getElementById('directVocabPreviewList');
+  const submitBtn = document.getElementById('btnSubmitDirectVocab');
+
+  if (!modal) return;
+
+  // 단원 목록 로드
+  if (sel) {
+    sel.innerHTML = '';
+    const filteredLessons = APP_STATE.lessons.filter(l => (l.subject_name || '영어') === APP_STATE.currentSubject);
+    filteredLessons.forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      opt.textContent = `${l.subject_name || APP_STATE.currentSubject} · ${l.unit_name}`;
+      const targetId = lessonId || APP_STATE.currentLessonId;
+      if (Number(l.id) === Number(targetId)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    if (filteredLessons.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '-- 등록된 단원이 없습니다 (먼저 단원을 등록해주세요) --';
+      sel.appendChild(opt);
+    }
+  }
+
+  // 필드 초기화
+  cachedParsedDirectVocab = [];
+  if (textInput) textInput.value = '';
+  if (countBadge) countBadge.textContent = '0개 감지';
+  if (statusBadge) {
+    statusBadge.style.background = '#E2E8F0';
+    statusBadge.style.color = '#64748B';
+    statusBadge.textContent = '단어를 입력해주세요';
+  }
+  if (previewList) {
+    previewList.innerHTML = '<div style="text-align: center; color: #9C8EB9; padding: 12px;">단어와 뜻을 입력하면 여기에 실시간으로 표시됩니다.</div>';
+  }
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '🚀 단어 클라우드 등록하기';
+  }
+
+  modal.classList.add('open');
+}
+
+function setupDirectVocabModal() {
+  const modal = document.getElementById('directVocabModal');
+  const closeBtn = document.getElementById('btnCloseDirectVocabModal');
+  const cancelBtn = document.getElementById('btnCancelDirectVocabModal');
+  const submitBtn = document.getElementById('btnSubmitDirectVocab');
+  const textInput = document.getElementById('directVocabTextInput');
+  const countBadge = document.getElementById('directVocabCountBadge');
+  const statusBadge = document.getElementById('directVocabStatusBadge');
+  const previewList = document.getElementById('directVocabPreviewList');
+  const sel = document.getElementById('directVocabLessonSelect');
+
+  if (!modal) return;
+
+  const closeModal = () => modal.classList.remove('open');
+  closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
+
+  // 실시간 텍스트 파싱 및 미리보기 갱신
+  function updatePreview() {
+    const rawText = textInput?.value || '';
+    const parsed = parseDirectVocabText(rawText);
+    cachedParsedDirectVocab = parsed;
+
+    if (countBadge) countBadge.textContent = `${parsed.length}개 감지`;
+
+    if (!rawText.trim()) {
+      if (statusBadge) {
+        statusBadge.style.background = '#E2E8F0';
+        statusBadge.style.color = '#64748B';
+        statusBadge.textContent = '단어를 입력해주세요';
+      }
+      if (previewList) {
+        previewList.innerHTML = '<div style="text-align: center; color: #9C8EB9; padding: 12px;">단어와 뜻을 입력하면 여기에 실시간으로 표시됩니다.</div>';
+      }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '🚀 단어 클라우드 등록하기';
+      }
+      return;
+    }
+
+    if (parsed.length > 0) {
+      if (statusBadge) {
+        statusBadge.style.background = '#DCFCE7';
+        statusBadge.style.color = '#15803D';
+        statusBadge.textContent = `✅ 총 ${parsed.length}개 단어 파싱 완료! (등록 가능)`;
+      }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = `🚀 ${parsed.length}개 단어 클라우드 등록하기`;
+      }
+    } else {
+      if (statusBadge) {
+        statusBadge.style.background = '#FEE2E2';
+        statusBadge.style.color = '#B91C1C';
+        statusBadge.textContent = '❌ 파싱된 단어가 없습니다. 형식을 확인해주세요.';
+      }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '🚀 단어 클라우드 등록하기';
+      }
+    }
+
+    // 미리보기 테이블 렌더링
+    if (previewList) {
+      if (parsed.length === 0) {
+        previewList.innerHTML = '<div style="text-align: center; color: #EF4444; padding: 10px;">인식된 단어가 없습니다.</div>';
+      } else {
+        let html = '<table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">';
+        html += '<thead style="background: #ECE7F6; color: #5C4B99;"><tr><th style="padding: 4px; width: 36px; text-align: center;">번호</th><th style="padding: 4px; width: 140px; text-align: left;">단어</th><th style="padding: 4px; width: 45px; text-align: center;">품사</th><th style="padding: 4px; text-align: left;">한글 뜻</th></tr></thead><tbody>';
+
+        parsed.forEach(w => {
+          html += `<tr style="border-bottom: 1px solid #F1EDFA;">
+            <td style="padding: 4px; text-align: center; font-weight: 800; color: #6C52EE;">${w.word_no}</td>
+            <td style="padding: 4px; color: #1E293B; font-weight: 700;">${w.word}</td>
+            <td style="padding: 4px; text-align: center; color: #7B6E9E;"><span style="background: #EDE9FE; color: #6C52EE; padding: 1px 5px; border-radius: 4px; font-size: 10.5px;">${w.pos}</span></td>
+            <td style="padding: 4px; color: #382B68;">${w.meaning}</td>
+          </tr>`;
+        });
+        html += '</tbody></table>';
+        previewList.innerHTML = html;
+      }
+    }
+  }
+
+  textInput?.addEventListener('input', updatePreview);
+
+  // 등록 저장
+  submitBtn?.addEventListener('click', async () => {
+    const lessonId = sel?.value ? Number(sel.value) : null;
+    if (!lessonId) {
+      alert('학습을 등록할 대단원을 선택해주세요.');
+      return;
+    }
+    if (!cachedParsedDirectVocab || cachedParsedDirectVocab.length === 0) {
+      alert('등록할 단어가 없습니다. 텍스트를 입력해주세요.');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = '클라우드 저장 중...';
+
+    try {
+      await window.MSE_DB.apiInsertWords(lessonId, cachedParsedDirectVocab);
+      modal.classList.remove('open');
+      alert(`🎉 ${cachedParsedDirectVocab.length}개 단어가 성공적으로 등록되었습니다!`);
+      await switchLesson(lessonId);
+    } catch (err) {
+      console.error('apiInsertWords error:', err);
+      alert('단어 등록 실패: ' + err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = `🚀 ${cachedParsedDirectVocab.length}개 단어 클라우드 등록하기`;
     }
   });
 }
@@ -4792,6 +5069,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupUploadChoiceModal();
   // 서술형 직접 텍스트 등록 모달 초기화
   setupDirectWritingModal();
+  // 단어장 직접 텍스트 등록 모달 초기화
+  setupDirectVocabModal();
 
   // 서술형 영작 버튼 이벤트 바인딩
   document.getElementById('btnWritingPrev')?.addEventListener('click', () => {
