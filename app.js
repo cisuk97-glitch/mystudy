@@ -1488,9 +1488,9 @@ function triggerConfetti() {
 }
 
 // --------------------------------------------------------
-// PDF 학습 자료 등록 모달 로직 (단어장 vs 서술형 영작 분기)
+// 학습 자료 등록 모달 로직 (단어장 직접 입력 / 서술형 영작 분기)
 // --------------------------------------------------------
-let cachedUploadChoiceFile = null;
+let cachedParsedUploadChoiceVocab = [];
 
 function openUploadChoiceModal(defaultType = 'VOCAB') {
   const modal = document.getElementById('uploadChoiceModal');
@@ -1498,10 +1498,11 @@ function openUploadChoiceModal(defaultType = 'VOCAB') {
   const btnVocab = document.getElementById('btnTypeVocab');
   const btnWriting = document.getElementById('btnTypeWriting');
   const typeInput = document.getElementById('uploadChoiceType');
-  const notice = document.getElementById('uploadChoiceFileNotice');
-  const statusEl = document.getElementById('uploadChoiceStatus');
+  const vocabInput = document.getElementById('uploadChoiceVocabInput');
+  const countBadge = document.getElementById('uploadChoiceVocabCountBadge');
+  const statusBadge = document.getElementById('uploadChoiceStatusBadge');
+  const previewList = document.getElementById('uploadChoicePreviewList');
   const submitBtn = document.getElementById('btnSubmitUploadChoiceModal');
-  const fileInput = document.getElementById('uploadChoiceFileInput');
 
   if (!modal) return;
 
@@ -1527,24 +1528,29 @@ function openUploadChoiceModal(defaultType = 'VOCAB') {
   // 유형 버튼 초기화
   if (typeInput) typeInput.value = defaultType;
   if (defaultType === 'WRITING') {
-    btnVocab?.classList.remove('active');
-    btnWriting?.classList.add('active');
+    modal.classList.remove('open');
+    openDirectWritingModal(sel?.value);
+    return;
   } else {
     btnVocab?.classList.add('active');
     btnWriting?.classList.remove('active');
   }
 
-  // 파일 및 상태 초기화
-  cachedUploadChoiceFile = null;
-  if (fileInput) fileInput.value = '';
-  if (notice) notice.textContent = '클릭하여 PDF 선택 또는 파일 끌어다 놓기';
-  if (statusEl) {
-    statusEl.style.display = 'none';
-    statusEl.textContent = '';
+  // 필드 및 상태 초기화
+  cachedParsedUploadChoiceVocab = [];
+  if (vocabInput) vocabInput.value = '';
+  if (countBadge) countBadge.textContent = '0개 감지';
+  if (statusBadge) {
+    statusBadge.style.background = '#E2E8F0';
+    statusBadge.style.color = '#64748B';
+    statusBadge.textContent = '단어를 입력해주세요';
+  }
+  if (previewList) {
+    previewList.innerHTML = '<div style="text-align: center; color: #9C8EB9; padding: 12px;">단어와 뜻을 입력하면 여기에 실시간으로 표시됩니다.</div>';
   }
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.textContent = '등록하기';
+    submitBtn.textContent = '🚀 단어 클라우드 등록하기';
   }
 
   modal.classList.add('open');
@@ -1552,15 +1558,15 @@ function openUploadChoiceModal(defaultType = 'VOCAB') {
 
 function setupUploadChoiceModal() {
   const modal = document.getElementById('uploadChoiceModal');
-  const dropzone = document.getElementById('uploadChoiceDropZone');
-  const fileInput = document.getElementById('uploadChoiceFileInput');
+  const sel = document.getElementById('uploadChoiceLessonSelect');
   const btnVocab = document.getElementById('btnTypeVocab');
   const btnWriting = document.getElementById('btnTypeWriting');
-  const typeInput = document.getElementById('uploadChoiceType');
   const cancelBtn = document.getElementById('btnCancelUploadChoiceModal');
   const submitBtn = document.getElementById('btnSubmitUploadChoiceModal');
-  const notice = document.getElementById('uploadChoiceFileNotice');
-  const statusEl = document.getElementById('uploadChoiceStatus');
+  const vocabInput = document.getElementById('uploadChoiceVocabInput');
+  const countBadge = document.getElementById('uploadChoiceVocabCountBadge');
+  const statusBadge = document.getElementById('uploadChoiceStatusBadge');
+  const previewList = document.getElementById('uploadChoicePreviewList');
 
   if (!modal) return;
 
@@ -1569,116 +1575,114 @@ function setupUploadChoiceModal() {
     modal.classList.remove('open');
   });
 
-  // 유형 전환
-  btnVocab?.addEventListener('click', () => {
-    modal.classList.remove('open');
-    const curLessonId = document.getElementById('uploadChoiceLessonSelect')?.value;
-    openDirectVocabModal(curLessonId);
-  });
-
+  // 서술형 영작 전환 -> 서술형 직접 등록 모달 오픈
   btnWriting?.addEventListener('click', () => {
     modal.classList.remove('open');
-    const curLessonId = document.getElementById('uploadChoiceLessonSelect')?.value;
+    const curLessonId = sel?.value;
     openDirectWritingModal(curLessonId);
   });
 
-  // 드롭존 및 파일 선택
-  dropzone?.addEventListener('click', () => {
-    fileInput?.click();
+  // 단어장 직접 등록 유지
+  btnVocab?.addEventListener('click', () => {
+    btnVocab.classList.add('active');
+    btnWriting?.classList.remove('active');
   });
 
-  dropzone?.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropzone.style.background = '#F2ECFF';
-    dropzone.style.borderColor = '#6C52EE';
-  });
+  // 실시간 텍스트 파싱 및 미리보기 갱신
+  function updateVocabPreview() {
+    const rawText = vocabInput?.value || '';
+    const parsed = parseDirectVocabText(rawText);
+    cachedParsedUploadChoiceVocab = parsed;
 
-  dropzone?.addEventListener('dragleave', () => {
-    dropzone.style.background = '#FBF9FE';
-    dropzone.style.borderColor = '#B8AEDD';
-  });
+    if (countBadge) countBadge.textContent = `${parsed.length}개 감지`;
 
-  dropzone?.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropzone.style.background = '#FBF9FE';
-    dropzone.style.borderColor = '#B8AEDD';
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleSelectedPdf(e.dataTransfer.files[0]);
-    }
-  });
-
-  fileInput?.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files[0]) {
-      handleSelectedPdf(e.target.files[0]);
-    }
-  });
-
-  function handleSelectedPdf(file) {
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      alert('PDF 파일만 등록할 수 있습니다.');
+    if (!rawText.trim()) {
+      if (statusBadge) {
+        statusBadge.style.background = '#E2E8F0';
+        statusBadge.style.color = '#64748B';
+        statusBadge.textContent = '단어를 입력해주세요';
+      }
+      if (previewList) {
+        previewList.innerHTML = '<div style="text-align: center; color: #9C8EB9; padding: 12px;">단어와 뜻을 입력하면 여기에 실시간으로 표시됩니다.</div>';
+      }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '🚀 단어 클라우드 등록하기';
+      }
       return;
     }
-    cachedUploadChoiceFile = file;
-    if (notice) notice.textContent = `📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-    if (submitBtn) submitBtn.disabled = false;
+
+    if (parsed.length > 0) {
+      if (statusBadge) {
+        statusBadge.style.background = '#DCFCE7';
+        statusBadge.style.color = '#15803D';
+        statusBadge.textContent = `✅ 총 ${parsed.length}개 단어 감지 완료! (등록 가능)`;
+      }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = `🚀 ${parsed.length}개 단어 클라우드 등록하기`;
+      }
+    } else {
+      if (statusBadge) {
+        statusBadge.style.background = '#FEE2E2';
+        statusBadge.style.color = '#B91C1C';
+        statusBadge.textContent = '❌ 파싱된 단어가 없습니다. 형식을 확인해주세요.';
+      }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '🚀 단어 클라우드 등록하기';
+      }
+    }
+
+    // 미리보기 테이블 렌더링
+    if (previewList) {
+      if (parsed.length === 0) {
+        previewList.innerHTML = '<div style="text-align: center; color: #EF4444; padding: 10px;">인식된 단어가 없습니다.</div>';
+      } else {
+        let html = '<table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">';
+        html += '<thead style="background: #ECE7F6; color: #5C4B99;"><tr><th style="padding: 4px; width: 36px; text-align: center;">번호</th><th style="padding: 4px; width: 140px; text-align: left;">단어</th><th style="padding: 4px; width: 45px; text-align: center;">품사</th><th style="padding: 4px; text-align: left;">한글 뜻</th></tr></thead><tbody>';
+
+        parsed.forEach(w => {
+          html += `<tr style="border-bottom: 1px solid #F1EDFA;">
+            <td style="padding: 4px; text-align: center; font-weight: 800; color: #6C52EE;">${w.word_no}</td>
+            <td style="padding: 4px; color: #1E293B; font-weight: 700;">${w.word}</td>
+            <td style="padding: 4px; text-align: center; color: #7B6E9E;"><span style="background: #EDE9FE; color: #6C52EE; padding: 1px 5px; border-radius: 4px; font-size: 10.5px;">${w.pos}</span></td>
+            <td style="padding: 4px; color: #382B68;">${w.meaning}</td>
+          </tr>`;
+        });
+        html += '</tbody></table>';
+        previewList.innerHTML = html;
+      }
+    }
   }
+
+  vocabInput?.addEventListener('input', updateVocabPreview);
 
   // 등록 제출
   submitBtn?.addEventListener('click', async () => {
-    const lessonSel = document.getElementById('uploadChoiceLessonSelect');
-    const lessonId = lessonSel?.value ? Number(lessonSel.value) : null;
-    const type = typeInput?.value || 'VOCAB';
-
+    const lessonId = sel?.value ? Number(sel.value) : null;
     if (!lessonId) {
       alert('학습을 등록할 대단원을 선택해주세요.');
       return;
     }
-    if (!cachedUploadChoiceFile) {
-      alert('PDF 파일을 첨부해주세요.');
+    if (!cachedParsedUploadChoiceVocab || cachedParsedUploadChoiceVocab.length === 0) {
+      alert('등록할 단어가 없습니다. 텍스트를 입력해주세요.');
       return;
     }
 
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = '파싱 및 등록 중...';
-    }
-    if (statusEl) {
-      statusEl.style.display = 'block';
-      statusEl.style.color = '#6C52EE';
-      statusEl.textContent = '⏳ PDF 문서를 분석하는 중...';
-    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = '클라우드 등록 중...';
 
     try {
-      if (type === 'VOCAB') {
-        if (statusEl) statusEl.textContent = '⏳ PDF 단어 표를 파싱하는 중...';
-        const words = await window.parseVocabPdf(cachedUploadChoiceFile);
-        if (statusEl) statusEl.textContent = `✅ ${words.length}개 단어 파싱 완료! 저장 중...`;
-        await window.MSE_DB.apiInsertWords(lessonId, words);
-        modal.classList.remove('open');
-        alert(`🎉 ${words.length}개 단어가 성공적으로 등록되었습니다!`);
-        await switchLesson(lessonId);
-      } else {
-        if (statusEl) statusEl.textContent = '⏳ "Level 2 영작 연습하기" 문항을 파싱하는 중...';
-        const sentences = await window.parseWritingPdf(cachedUploadChoiceFile);
-        if (statusEl) statusEl.textContent = `✅ ${sentences.length}개 서술형 문항 매칭 완료! 저장 중...`;
-        await window.MSE_DB.apiInsertWritingSentences(lessonId, sentences);
-        modal.classList.remove('open');
-        alert(`🎉 ${sentences.length}개 서술형 영작 문제가 성공적으로 등록되었습니다!`);
-        await switchLesson(lessonId);
-        // 서술형 영작 탭으로 전환
-        document.getElementById('tabBtnPaperTest')?.click();
-      }
+      await window.MSE_DB.apiInsertWords(lessonId, cachedParsedUploadChoiceVocab);
+      modal.classList.remove('open');
+      alert(`🎉 ${cachedParsedUploadChoiceVocab.length}개 단어가 성공적으로 등록되었습니다!`);
+      await switchLesson(lessonId);
     } catch (err) {
-      console.error('Upload choice error:', err);
-      if (statusEl) {
-        statusEl.style.color = '#EF4444';
-        statusEl.textContent = `❌ ${err.message}`;
-      }
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = '다시 시도';
-      }
+      console.error('Upload choice vocab error:', err);
       alert('등록 중 오류 발생: ' + err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = `🚀 ${cachedParsedUploadChoiceVocab.length}개 단어 클라우드 등록하기`;
     }
   });
 }
@@ -1888,7 +1892,13 @@ let cachedParsedDirectVocab = [];
 
 function parseDirectVocabText(rawText) {
   if (!rawText || typeof rawText !== 'string') return [];
-  const lines = rawText.split(/\r?\n/);
+
+  // 한 줄에 번호와 함께 여러 단어가 연속해서 붙어있는 경우(예: "1 primary 주요한 2 inspiration 영감" 또는 "1primary 주요한 2inspiration 영감") 줄바꿈 전처리
+  const normalized = rawText
+    .replace(/(?:[,\s]|^)\[?\s*(\d{1,3})\s*[\.\)\]\s]*\s*([a-zA-Z~' \-])/g, '\n$1. $2')
+    .trim();
+
+  const lines = normalized.split(/\r?\n/);
   const knownPosList = ['형', '명', '동', '부', '동/명', '명/동', '숙어', '대', '전', '접', 'v', 'n', 'a', 'adv'];
   const result = [];
   let currentNo = 1;
