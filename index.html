@@ -530,14 +530,14 @@
     </div>
   </div>
 
-  <!-- PDF 학습 자료 등록 모달 (단어장 vs 서술형 영작 분기) -->
+  <!-- 자료 등록 모달 (단어장 직접 입력 / 서술형 영작 분기) -->
   <div class="modal-overlay" id="uploadChoiceModal">
-    <div class="modal-card" style="max-width: 480px;">
+    <div class="modal-card" style="max-width: 680px; max-height: 90vh; display: flex; flex-direction: column;">
       <h3 style="font-size: 18px; font-weight: 900; color: #382B68; margin-bottom: 6px;">
-        📑 PDF 학습 자료 등록
+        📑 학습 자료 등록 (단어장 / 서술형)
       </h3>
       <p style="font-size: 12px; color: #7B6E9E; margin-bottom: 14px; line-height: 1.4;">
-        등록할 단원과 학습 유형(단어장 또는 서술형 영작)을 선택한 후 PDF 파일을 업로드하세요.
+        단어장은 아래 입력창에 단어와 뜻을 직접 입력하고, 서술형 영작은 전용 1:1 매칭 등록 창으로 이동합니다.
       </p>
 
       <!-- 1. 단원 선택 -->
@@ -554,7 +554,7 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <button type="button" class="lesson-cat-chip active" id="btnTypeVocab" data-type="VOCAB"
             style="padding: 10px 8px; font-size: 13px; font-weight: 800; text-align: center;">
-            📖 단어장 등록
+            📖 단어장 직접 등록
           </button>
           <button type="button" class="lesson-cat-chip" id="btnTypeWriting" data-type="WRITING"
             style="padding: 10px 8px; font-size: 13px; font-weight: 800; text-align: center;">
@@ -564,84 +564,35 @@
         <input type="hidden" id="uploadChoiceType" value="VOCAB">
       </div>
 
-      <!-- 3. PDF 파일 드롭존 & 선택 -->
-      <div style="margin-bottom: 14px;">
-        <label class="setting-label">PDF 파일 첨부</label>
-        <div id="uploadChoiceDropZone"
-          style="border: 2px dashed #B8AEDD; border-radius: 12px; padding: 22px 14px; text-align: center; background: #FBF9FE; cursor: pointer; transition: all 0.2s ease;">
-          <div style="font-size: 28px; margin-bottom: 6px;">📄</div>
-          <div id="uploadChoiceFileNotice" style="font-size: 12.5px; font-weight: 700; color: #5C4B99;">
-            클릭하여 PDF 선택 또는 파일 끌어다 놓기
-          </div>
-          <div style="font-size: 11px; color: #9C8EB9; margin-top: 4px;">
-            단어장 표 PDF 또는 'Level 2 영작 연습하기'가 포함된 PDF
-          </div>
-        </div>
-        <input type="file" id="uploadChoiceFileInput" accept=".pdf" style="display: none;">
-      </div>
-
-      <!-- 상태 안내 메시지 -->
-      <div id="uploadChoiceStatus"
-        style="font-size: 12px; font-weight: 700; margin-bottom: 12px; display: none; text-align: center;"></div>
-
-      <div style="display: flex; gap: 8px;">
-        <button type="button" class="action-btn btn-prev" id="btnCancelUploadChoiceModal" style="flex:1;">취소</button>
-        <button type="button" class="action-btn btn-next" id="btnSubmitUploadChoiceModal" style="flex:1;"
-          disabled>등록하기</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 단어장 직접 텍스트 일괄 등록 모달 -->
-  <div class="modal-overlay" id="directVocabModal">
-    <div class="modal-card" style="max-width: 720px; max-height: 90vh; display: flex; flex-direction: column;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-        <h3 style="font-size: 18px; font-weight: 900; color: #382B68;">
-          📖 단어장 직접 텍스트 등록
-        </h3>
-        <button type="button" class="drawer-close-btn" id="btnCloseDirectVocabModal">✕</button>
-      </div>
-      <p style="font-size: 12px; color: #7B6E9E; margin-bottom: 12px; line-height: 1.4;">
-        한 줄에 하나씩 <strong>"단어 뜻"</strong> 형태로 복사해서 붙여넣으세요. (앞에 번호가 붙어 있어도 자동 제거됩니다)
-      </p>
-
-      <!-- 1. 단원 선택 -->
-      <div style="margin-bottom: 12px;">
-        <label class="setting-label">학습 대단원 선택</label>
-        <select id="directVocabLessonSelect" class="drawer-select" style="width: 100%;">
-          <!-- 동적 로드 -->
-        </select>
-      </div>
-
-      <!-- 2. 텍스트 입력 영역 -->
-      <div style="display: flex; flex-direction: column; margin-bottom: 12px; flex: 1;">
+      <!-- 3. 단어장 텍스트 직접 입력 영역 -->
+      <div id="uploadChoiceVocabInputSection" style="display: flex; flex-direction: column; margin-bottom: 12px; flex: 1;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
           <label class="setting-label" style="margin-bottom: 0;">📋 단어 및 뜻 목록 붙여넣기</label>
-          <span id="directVocabCountBadge" style="font-size: 11px; font-weight: 800; color: #16A34A;">0개 감지</span>
+          <span id="uploadChoiceVocabCountBadge" style="font-size: 11px; font-weight: 800; color: #16A34A;">0개 감지</span>
         </div>
-        <textarea id="directVocabTextInput" class="subjective-input"
-          style="min-height: 220px; resize: vertical; font-size: 13.5px; line-height: 1.6; padding: 12px; font-family: inherit;"
-          placeholder="한 줄에 단어 하나씩 입력하세요.&#10;&#10;예시:&#10;primary 주요한&#10;inspiration 영감, 영감을 주는 것&#10;exceptionally 유난히, 이례적으로&#10;feature 특징으로 삼다 / 특징, 특성&#10;on one's own 혼자서&#10;take ~ for granted ~을 당연하게 여기다"></textarea>
+        <textarea id="uploadChoiceVocabInput" class="subjective-input"
+          style="min-height: 180px; resize: vertical; font-size: 13px; line-height: 1.6; padding: 10px; font-family: inherit;"
+          placeholder="한 줄에 단어 하나씩 또는 번호와 함께 붙여넣으세요.&#10;&#10;예시 1 (줄바꿈 형태):&#10;primary 주요한, 주된&#10;inspiration 영감, 영감을 주는 것&#10;exceptionally 유난히, 이례적으로&#10;feature 특징으로 삼다 / 특징, 특성&#10;on one's own 혼자서&#10;take ~ for granted ~을 당연하게 여기다&#10;&#10;예시 2 (한 줄 연속 번호 형태):&#10;1 primary 주요한, 주된 2 inspiration 영감, 영감을 주는 것 3 exceptionally 유난히, 이례적으로 4 intense 강렬한"></textarea>
       </div>
 
-      <!-- 3. 실시간 파싱 미리보기 영역 -->
-      <div id="directVocabPreviewArea"
+      <!-- 4. 실시간 파싱 미리보기 영역 -->
+      <div id="uploadChoicePreviewArea"
         style="background: #F8F6FD; border: 1.5px solid #EBE6F7; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
           <span style="font-size: 12px; font-weight: 800; color: #4B3A72;">🔍 단어 목록 미리보기</span>
-          <span id="directVocabStatusBadge"
+          <span id="uploadChoiceStatusBadge"
             style="font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: #E2E8F0; color: #64748B;">단어를 입력해주세요</span>
         </div>
-        <div id="directVocabPreviewList"
-          style="max-height: 150px; overflow-y: auto; font-size: 12px; color: #4B3A72; border-top: 1px solid #ECE7F6; padding-top: 6px;">
+        <div id="uploadChoicePreviewList"
+          style="max-height: 140px; overflow-y: auto; font-size: 12px; color: #4B3A72; border-top: 1px solid #ECE7F6; padding-top: 6px;">
           <div style="text-align: center; color: #9C8EB9; padding: 12px;">단어와 뜻을 입력하면 여기에 실시간으로 표시됩니다.</div>
         </div>
       </div>
 
-      <!-- 4. 하단 버튼 -->
       <div style="display: flex; gap: 8px;">
-        <button type="button" class="action-btn btn-prev" id="btnCancelDirectVocabModal" style="flex: 1;">취소</button>
-        <button type="button" class="action-btn btn-next" id="btnSubmitDirectVocab" style="flex: 2;" disabled>🚀 단어 클라우드 등록하기</button>
+        <button type="button" class="action-btn btn-prev" id="btnCancelUploadChoiceModal" style="flex:1;">취소</button>
+        <button type="button" class="action-btn btn-next" id="btnSubmitUploadChoiceModal" style="flex:2;"
+          disabled>🚀 단어 클라우드 등록하기</button>
       </div>
     </div>
   </div>
