@@ -1438,6 +1438,7 @@ body {
   .deco-cloud,
   .modal-overlay,
   .action-btn,
+  .no-print,
   #btnPrintFinalMistakes,
   #btnTestFinalMistakes {
     display: none !important;
@@ -1471,6 +1472,67 @@ body {
   .final-mistakes-table td {
     border: 1px solid #000 !important;
     color: #000 !important;
+  }
+}
+
+/* ========================================================
+   오답노트 전용 A4 인쇄 최적화 스타일
+   ======================================================== */
+@media print {
+  body.printing-wrong-notes {
+    background: #FFF !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body.printing-wrong-notes .app-header-slim,
+  body.printing-wrong-notes .binder-rings,
+  body.printing-wrong-notes .tabs-bar,
+  body.printing-wrong-notes .drawer-sidebar,
+  body.printing-wrong-notes .drawer-overlay,
+  body.printing-wrong-notes .deco-cloud,
+  body.printing-wrong-notes .diary-container,
+  body.printing-wrong-notes .tab-content,
+  body.printing-wrong-notes #manageWrongNotesModal,
+  body.printing-wrong-notes .modal-overlay:not(#wrongNotesPrintModal),
+  body.printing-wrong-notes .no-print {
+    display: none !important;
+  }
+
+  body.printing-wrong-notes #wrongNotesPrintModal {
+    display: block !important;
+    position: static !important;
+    background: #FFF !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    z-index: auto !important;
+  }
+
+  body.printing-wrong-notes #wrongNotesPrintCard {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  body.printing-wrong-notes #wrongPrintArea {
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+
+  body.printing-wrong-notes .wrong-print-card {
+    border: 1px solid #CBD5E1 !important;
+    background: #FFF !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 12px !important;
+    box-shadow: none !important;
   }
 }
 
