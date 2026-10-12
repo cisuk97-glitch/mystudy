@@ -704,52 +704,46 @@ async function apiSubmitTest({
  * 7. 부모님/관리자용 시험 성적표 목록 조회
  */
 async function apiGetTestRecords(lessonId = null, limit = 50, category = null, subjectName = null) {
-  if (isSupabaseConnected()) {
-    try {
-      let query = supabaseClient
-        .from('test_records')
-        .select('*, lessons!inner(unit_name, subject_name)')
-        .order('test_date', { ascending: false })
-        .limit(limit);
-
-      if (subjectName) {
-        query = query.eq('lessons.subject_name', subjectName);
-      }
-      if (lessonId) {
-        query = query.eq('lesson_id', lessonId);
-      }
-      if (category && category !== 'ALL') {
-        query = query.eq('test_category', category);
-      }
-      const { data, error } = await query;
-      if (!error && data) return data;
-    } catch (e) {
-      console.warn('apiGetTestRecords fallback:', e);
-    }
+  if (!isSupabaseConnected()) {
+    throw new Error('Supabase 클라우드 데이터베이스에 연결되어 있지 않습니다.');
   }
 
-  // Local fallback
-  let recs = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.RECORDS) || '[]');
-  const lessons = await apiGetLessons();
-  const lessonObjMap = Object.fromEntries(lessons.map(l => [l.id, l]));
+  // 1. 해당 과목의 단원 목록 조회 (과목 필터링 및 lessons 매핑)
+  const allLessons = await apiGetLessons(subjectName);
+  const lessonMap = Object.fromEntries((allLessons || []).map(l => [l.id, l]));
+  const subjectLessonIds = (allLessons || []).map(l => l.id);
+
+  let query = supabaseClient
+    .from('test_records')
+    .select('*')
+    .order('test_date', { ascending: false })
+    .limit(limit);
 
   if (subjectName) {
-    recs = recs.filter(r => {
-      const les = lessonObjMap[r.lesson_id];
-      return les && les.subject_name === subjectName;
-    });
+    if (subjectLessonIds.length > 0) {
+      query = query.in('lesson_id', subjectLessonIds);
+    } else {
+      return [];
+    }
   }
   if (lessonId) {
-    recs = recs.filter(r => Number(r.lesson_id) === Number(lessonId));
+    query = query.eq('lesson_id', Number(lessonId) || lessonId);
   }
   if (category && category !== 'ALL') {
-    recs = recs.filter(r => (r.test_category || 'VOCAB') === category);
+    query = query.eq('test_category', category);
   }
-  return recs.slice(0, limit).map(r => ({
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('apiGetTestRecords error:', error);
+    throw new Error('시험 기록 조회 실패: ' + error.message);
+  }
+
+  return (data || []).map(r => ({
     ...r,
     lessons: {
-      unit_name: lessonObjMap[r.lesson_id]?.unit_name || '3과 The Gift of Art',
-      subject_name: lessonObjMap[r.lesson_id]?.subject_name || '영어'
+      unit_name: lessonMap[r.lesson_id]?.unit_name || '단원',
+      subject_name: lessonMap[r.lesson_id]?.subject_name || (subjectName || '영어')
     }
   }));
 }
@@ -1106,6 +1100,10 @@ async function apiCreateScheduleFromTest({ subject, lessonId, testTitle, categor
 async function saveWrongAnswerNote(data) {
   if (!data) return null;
 
+  if (!isSupabaseConnected()) {
+    throw new Error('Supabase 클라우드 데이터베이스에 연결되어 있지 않습니다. 설정에서 DB 연결을 확인해주세요.');
+  }
+
   const now = new Date().toISOString();
   let lessonIdVal = data.lesson_id;
   if (lessonIdVal === 'ALL_TESTS' || lessonIdVal === '전체테스트' || !lessonIdVal) {
@@ -1128,42 +1126,37 @@ async function saveWrongAnswerNote(data) {
   };
 
   let savedRecord = null;
+  let dbError = null;
 
-  if (isSupabaseConnected()) {
-    try {
-      if (data.id) {
+  try {
+    if (data.id) {
+      const { data: updated, error } = await supabaseClient
+        .from('wrong_answers')
+        .update(payload)
+        .eq('id', data.id)
+        .select()
+        .single();
+      if (error) dbError = error;
+      else savedRecord = updated;
+    } else if (payload.test_id && payload.question_num) {
+      const { data: existing, error: findErr } = await supabaseClient
+        .from('wrong_answers')
+        .select('id')
+        .eq('test_id', payload.test_id)
+        .eq('question_num', payload.question_num)
+        .maybeSingle();
+
+      if (findErr) {
+        dbError = findErr;
+      } else if (existing && existing.id) {
         const { data: updated, error } = await supabaseClient
           .from('wrong_answers')
           .update(payload)
-          .eq('id', data.id)
+          .eq('id', existing.id)
           .select()
           .single();
-        if (!error && updated) savedRecord = updated;
-      } else if (payload.test_id && payload.question_num) {
-        const { data: existing } = await supabaseClient
-          .from('wrong_answers')
-          .select('id')
-          .eq('test_id', payload.test_id)
-          .eq('question_num', payload.question_num)
-          .maybeSingle();
-
-        if (existing && existing.id) {
-          const { data: updated, error } = await supabaseClient
-            .from('wrong_answers')
-            .update(payload)
-            .eq('id', existing.id)
-            .select()
-            .single();
-          if (!error && updated) savedRecord = updated;
-        } else {
-          payload.created_at = now;
-          const { data: inserted, error } = await supabaseClient
-            .from('wrong_answers')
-            .insert([payload])
-            .select()
-            .single();
-          if (!error && inserted) savedRecord = inserted;
-        }
+        if (error) dbError = error;
+        else savedRecord = updated;
       } else {
         payload.created_at = now;
         const { data: inserted, error } = await supabaseClient
@@ -1171,53 +1164,29 @@ async function saveWrongAnswerNote(data) {
           .insert([payload])
           .select()
           .single();
-        if (!error && inserted) savedRecord = inserted;
+        if (error) dbError = error;
+        else savedRecord = inserted;
       }
-    } catch (e) {
-      console.warn('saveWrongAnswerNote supabase failed, fallback to local:', e);
+    } else {
+      payload.created_at = now;
+      const { data: inserted, error } = await supabaseClient
+        .from('wrong_answers')
+        .insert([payload])
+        .select()
+        .single();
+      if (error) dbError = error;
+      else savedRecord = inserted;
     }
+  } catch (err) {
+    dbError = err;
   }
 
-  // Local storage fallback / mirror
-  const raw = localStorage.getItem('mse_local_wrong_answers');
-  let list = [];
-  if (raw) {
-    try { list = JSON.parse(raw); } catch (e) { list = []; }
+  if (dbError || !savedRecord) {
+    const msg = dbError?.message || '오답노트 클라우드 저장에 실패했습니다.';
+    console.error('saveWrongAnswerNote error:', msg);
+    throw new Error(msg);
   }
 
-  if (savedRecord) {
-    const idx = list.findIndex(item => item.id == savedRecord.id);
-    if (idx >= 0) list[idx] = savedRecord;
-    else list.unshift(savedRecord);
-    localStorage.setItem('mse_local_wrong_answers', JSON.stringify(list));
-    return savedRecord;
-  }
-
-  let targetIdx = -1;
-  if (data.id) {
-    targetIdx = list.findIndex(item => item.id == data.id);
-  } else if (payload.test_id && payload.question_num) {
-    targetIdx = list.findIndex(item => item.test_id == payload.test_id && item.question_num == payload.question_num);
-  }
-
-  if (targetIdx >= 0) {
-    list[targetIdx] = {
-      ...list[targetIdx],
-      ...payload,
-      updated_at: now
-    };
-    savedRecord = list[targetIdx];
-  } else {
-    savedRecord = {
-      id: Date.now(),
-      ...payload,
-      created_at: now,
-      updated_at: now
-    };
-    list.unshift(savedRecord);
-  }
-
-  localStorage.setItem('mse_local_wrong_answers', JSON.stringify(list));
   return savedRecord;
 }
 
@@ -1225,62 +1194,46 @@ async function saveWrongAnswerNote(data) {
  * 오답 목록 조회 (필터링: subject, lesson_id, test_id, question_num)
  */
 async function getWrongAnswerNotes(filter = {}) {
-  if (isSupabaseConnected()) {
-    try {
-      let query = supabaseClient.from('wrong_answers').select('*');
-      if (filter.subject && filter.subject !== 'ALL') {
-        query = query.eq('subject', filter.subject);
-      }
-      if (filter.lesson_id !== undefined && filter.lesson_id !== null && filter.lesson_id !== 'ALL') {
-        if (filter.lesson_id === 'UNASSIGNED') {
-          query = query.is('lesson_id', null);
-        } else {
-          query = query.eq('lesson_id', Number(filter.lesson_id));
-        }
-      }
-      if (filter.test_id && filter.test_id !== 'ALL') {
-        query = query.eq('test_id', Number(filter.test_id));
-      }
-      if (filter.question_num) {
-        query = query.eq('question_num', Number(filter.question_num));
-      }
-      query = query.order('created_at', { ascending: false });
-
-      const { data, error } = await query;
-      if (!error && Array.isArray(data)) {
-        return data;
-      }
-    } catch (e) {
-      console.warn('getWrongAnswerNotes supabase failed, fallback to local:', e);
-    }
+  if (!isSupabaseConnected()) {
+    throw new Error('Supabase 클라우드 데이터베이스에 연결되어 있지 않습니다.');
   }
 
-  // Local fallback
-  const raw = localStorage.getItem('mse_local_wrong_answers');
-  let list = [];
-  if (raw) {
-    try { list = JSON.parse(raw); } catch (e) { list = []; }
+  let query = supabaseClient.from('wrong_answers').select('*');
+  if (filter.subject && filter.subject !== 'ALL') {
+    query = query.eq('subject', filter.subject);
+  }
+  if (filter.lesson_id !== undefined && filter.lesson_id !== null && filter.lesson_id !== 'ALL') {
+    if (filter.lesson_id === 'UNASSIGNED') {
+      query = query.is('lesson_id', null);
+    } else {
+      query = query.eq('lesson_id', Number(filter.lesson_id));
+    }
+  }
+  if (filter.test_id && filter.test_id !== 'ALL') {
+    query = query.eq('test_id', Number(filter.test_id));
+  }
+  if (filter.question_num) {
+    query = query.eq('question_num', Number(filter.question_num));
+  }
+  query = query.order('created_at', { ascending: false });
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('getWrongAnswerNotes error:', error);
+    throw new Error('오답노트 조회 실패: ' + error.message);
   }
 
-  return list.filter(item => {
-    if (filter.subject && filter.subject !== 'ALL' && item.subject !== filter.subject) return false;
-    if (filter.lesson_id !== undefined && filter.lesson_id !== null && filter.lesson_id !== 'ALL') {
-      if (filter.lesson_id === 'UNASSIGNED') {
-        if (item.lesson_id !== null && item.lesson_id !== undefined && item.lesson_id !== 'ALL_TESTS') return false;
-      } else if (item.lesson_id != filter.lesson_id) {
-        return false;
-      }
-    }
-    if (filter.test_id && filter.test_id !== 'ALL' && item.test_id != filter.test_id) return false;
-    if (filter.question_num && item.question_num != filter.question_num) return false;
-    return true;
-  });
+  return Array.isArray(data) ? data : [];
 }
 
 /**
  * 오답 단원 변경
  */
 async function updateWrongAnswerLesson(noteId, newLessonId) {
+  if (!isSupabaseConnected()) {
+    throw new Error('Supabase 클라우드 데이터베이스에 연결되어 있지 않습니다.');
+  }
+
   let lessonIdVal = newLessonId;
   if (lessonIdVal === 'ALL_TESTS' || lessonIdVal === '전체테스트' || !lessonIdVal) {
     lessonIdVal = null;
@@ -1289,31 +1242,16 @@ async function updateWrongAnswerLesson(noteId, newLessonId) {
   }
   const now = new Date().toISOString();
 
-  if (isSupabaseConnected()) {
-    try {
-      const { error } = await supabaseClient
-        .from('wrong_answers')
-        .update({ lesson_id: lessonIdVal, updated_at: now })
-        .eq('id', noteId);
-      if (error) console.warn('updateWrongAnswerLesson supabase error:', error);
-    } catch (e) {
-      console.warn('updateWrongAnswerLesson supabase failed:', e);
-    }
+  const { error } = await supabaseClient
+    .from('wrong_answers')
+    .update({ lesson_id: lessonIdVal, updated_at: now })
+    .eq('id', noteId);
+
+  if (error) {
+    console.error('updateWrongAnswerLesson error:', error);
+    throw new Error('단원 이동 저장 실패: ' + error.message);
   }
 
-  // Local storage update
-  const raw = localStorage.getItem('mse_local_wrong_answers');
-  if (raw) {
-    try {
-      const list = JSON.parse(raw);
-      const idx = list.findIndex(item => item.id == noteId);
-      if (idx >= 0) {
-        list[idx].lesson_id = lessonIdVal;
-        list[idx].updated_at = now;
-        localStorage.setItem('mse_local_wrong_answers', JSON.stringify(list));
-      }
-    } catch (e) {}
-  }
   return true;
 }
 
@@ -1321,27 +1259,20 @@ async function updateWrongAnswerLesson(noteId, newLessonId) {
  * 오답노트 삭제
  */
 async function deleteWrongAnswerNote(noteId) {
-  if (isSupabaseConnected()) {
-    try {
-      const { error } = await supabaseClient
-        .from('wrong_answers')
-        .delete()
-        .eq('id', noteId);
-      if (error) console.warn('deleteWrongAnswerNote supabase error:', error);
-    } catch (e) {
-      console.warn('deleteWrongAnswerNote supabase failed:', e);
-    }
+  if (!isSupabaseConnected()) {
+    throw new Error('Supabase 클라우드 데이터베이스에 연결되어 있지 않습니다.');
   }
 
-  // Local storage update
-  const raw = localStorage.getItem('mse_local_wrong_answers');
-  if (raw) {
-    try {
-      let list = JSON.parse(raw);
-      list = list.filter(item => item.id != noteId);
-      localStorage.setItem('mse_local_wrong_answers', JSON.stringify(list));
-    } catch (e) {}
+  const { error } = await supabaseClient
+    .from('wrong_answers')
+    .delete()
+    .eq('id', noteId);
+
+  if (error) {
+    console.error('deleteWrongAnswerNote error:', error);
+    throw new Error('오답노트 삭제 실패: ' + error.message);
   }
+
   return true;
 }
 
