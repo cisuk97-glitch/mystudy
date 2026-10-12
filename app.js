@@ -25,6 +25,13 @@ const APP_STATE = {
   testMode: 'ALL',       // 'ALL' | 'WRONG_ONLY'
   currentRound: 1,       // 1~5
   testStartTime: null,   // 테스트 시작 시각 (소요 시간 측정)
+  vocabTimer: {
+    elapsedSec: 0,
+    intervalId: null,
+    isRunning: false,
+    lastTick: null,
+    _pausedByVisibility: false
+  },
   testQuestions: [],
   userAnswers: {},
 
@@ -67,7 +74,19 @@ const APP_STATE = {
 
   // Writing Sentences Practice State (서술형 영작)
   writingSentences: [],
-  currentWritingIndex: 0
+  currentWritingIndex: 0,
+  writingAnswers: {},      // { [qIdx]: string[] } 단어별 입력값 보존
+  writingFirstResults: {}, // { [qIdx]: { isCorrect, correctCount, wrongCount, totalSlots, sentenceId, sentenceNo, myAnswer } }
+  writingSession: {
+    elapsedSec: 0,
+    isTiming: false,
+    isIdle: false,
+    lastTick: null,
+    lastInputTime: null,
+    _pausedByVisibility: false
+  },
+  writingSessionTimerInterval: null,
+  lastTestCategory: null
 };
 
 // --------------------------------------------------------
@@ -453,8 +472,69 @@ function renderStudyPage() {
 }
 
 // --------------------------------------------------------
-// TAB 2: 주관식 테스트 모듈 (스마트 채점 연동)
+// TAB 2: 주관식 테스트 모듈 (스마트 채점 연동 및 시간 측정)
 // --------------------------------------------------------
+function formatTimeMMSS(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function startVocabTimer(reset = true) {
+  if (APP_STATE.vocabTimer.intervalId) {
+    clearInterval(APP_STATE.vocabTimer.intervalId);
+    APP_STATE.vocabTimer.intervalId = null;
+  }
+  if (reset) {
+    APP_STATE.vocabTimer.elapsedSec = 0;
+  }
+  APP_STATE.vocabTimer.isRunning = true;
+  APP_STATE.vocabTimer.lastTick = Date.now();
+  updateVocabTimerBadge();
+
+  APP_STATE.vocabTimer.intervalId = setInterval(() => {
+    if (!APP_STATE.vocabTimer.isRunning) return;
+    const now = Date.now();
+    const deltaSec = Math.round((now - APP_STATE.vocabTimer.lastTick) / 1000);
+    if (deltaSec >= 1) {
+      APP_STATE.vocabTimer.elapsedSec += deltaSec;
+      APP_STATE.vocabTimer.lastTick = now;
+      updateVocabTimerBadge();
+    }
+  }, 1000);
+}
+
+function pauseVocabTimer() {
+  if (APP_STATE.vocabTimer.isRunning) {
+    if (APP_STATE.vocabTimer.lastTick) {
+      const deltaSec = Math.round((Date.now() - APP_STATE.vocabTimer.lastTick) / 1000);
+      if (deltaSec >= 1) APP_STATE.vocabTimer.elapsedSec += deltaSec;
+    }
+    APP_STATE.vocabTimer.isRunning = false;
+  }
+  if (APP_STATE.vocabTimer.intervalId) {
+    clearInterval(APP_STATE.vocabTimer.intervalId);
+    APP_STATE.vocabTimer.intervalId = null;
+  }
+}
+
+function resumeVocabTimer() {
+  if (!APP_STATE.vocabTimer.isRunning && APP_STATE.testQuestions && APP_STATE.testQuestions.length > 0) {
+    startVocabTimer(false);
+  }
+}
+
+function stopVocabTimer() {
+  pauseVocabTimer();
+}
+
+function updateVocabTimerBadge() {
+  const el = document.getElementById('vocabTestTimerBadge');
+  if (el) {
+    el.textContent = `⏱️ ${formatTimeMMSS(APP_STATE.vocabTimer.elapsedSec)}`;
+  }
+}
+
 function initTestSession() {
   let sourceWords = [];
 
@@ -485,6 +565,7 @@ function initTestSession() {
 
   APP_STATE.userAnswers = {};
   APP_STATE.testStartTime = Date.now();
+  startVocabTimer(true);
 
   renderTestQuestions();
 }
@@ -621,9 +702,12 @@ async function submitAndGradeTest() {
   else if (score >= 60) starsWon = 1;
 
   // 3-1. 테스트 소요 시간(초 단위) 및 완료 일시 측정
-  const durationSeconds = APP_STATE.testStartTime
-    ? Math.max(1, Math.round((Date.now() - APP_STATE.testStartTime) / 1000))
-    : 15; // 시작 시각이 누락된 경우에도 0초가 되지 않도록 기본값 보장
+  stopVocabTimer();
+  const durationSeconds = APP_STATE.vocabTimer.elapsedSec
+    ? Math.max(1, APP_STATE.vocabTimer.elapsedSec)
+    : (APP_STATE.testStartTime
+        ? Math.max(1, Math.round((Date.now() - APP_STATE.testStartTime) / 1000))
+        : 15);
   const testDate = new Date().toISOString();
 
   // 4. Supabase DB에 실시간 저장
@@ -670,10 +754,12 @@ async function submitAndGradeTest() {
 
 function showResultModal(data) {
   const modal = document.getElementById('resultModal');
+  APP_STATE.lastTestCategory = data.isWriting ? 'WRITING' : (data.isPdf ? 'UNIT' : 'VOCAB');
   const modeTitle = APP_STATE.testMode === 'WRONG_ONLY' ? '오답 집중' : '전체 시험';
   const durSec = data.durationSeconds || 0;
   const durText = durSec >= 60 ? `${Math.floor(durSec / 60)}분 ${durSec % 60}초` : `${durSec}초`;
-  document.getElementById('currentRoundBadge').textContent = `${APP_STATE.currentRound}회차 ${modeTitle} · 소요 시간: ${durText}`;
+  const badgeTitle = data.customTitle || `${APP_STATE.currentRound}회차 ${modeTitle}`;
+  document.getElementById('currentRoundBadge').textContent = `${badgeTitle} · 소요 시간: ${durText}`;
   document.getElementById('modalScoreNumber').textContent = `${data.score}점`;
 
   // 별 표시
@@ -695,6 +781,24 @@ function showResultModal(data) {
     feedback.textContent = `조금만 더 복습하면 만점 가능! (${data.correctCount}/${data.totalCount}문제 정답, ${durText})`;
   } else {
     feedback.textContent = `틀린 단어들을 오답 노트에서 다시 복습해볼까요? 화이팅! 💖 (${durText})`;
+  }
+
+  // 정답 및 해설 보기 버튼 처리
+  const btnExpl = document.getElementById('modalBtnExplanation');
+  if (btnExpl) {
+    if (data.isWriting) {
+      btnExpl.style.display = 'block';
+      btnExpl.textContent = '💡 정답 및 해설 보기 (전체 문제 확인)';
+      btnExpl.onclick = () => {
+        modal.classList.remove('open');
+        openWritingExplanationModal();
+      };
+    } else if (data.isPdf) {
+      btnExpl.style.display = 'block';
+      btnExpl.textContent = '💡 정답 및 해설 보기 (문제와 함께 2분할 확인)';
+    } else {
+      btnExpl.style.display = 'none';
+    }
   }
 
   // 오답 재시험 버튼 (요청에 따라 기본 숨김/제거됨)
@@ -2633,6 +2737,9 @@ async function openDualExplanation(test, userAnswers = {}, resultSummary = null)
   const testSelect = document.getElementById('paperTestSelect');
   if (testSelect) testSelect.value = test.id;
 
+  const writingWrap = document.getElementById('writingContainer');
+  if (writingWrap) writingWrap.style.display = 'none';
+
   const emptyState = document.getElementById('paperTestEmptyState');
   const activeArea = document.getElementById('paperTestActiveArea');
   if (emptyState) emptyState.style.display = 'none';
@@ -3630,6 +3737,23 @@ function setupWrongNotesManageModal() {
       confirmMoveBtn.textContent = '단원 이동 저장';
     }
   });
+
+  // 오답노트 모아보기 & 인쇄 버튼 및 모달 이벤트
+  document.getElementById('btnOpenWrongReportPrint')?.addEventListener('click', () => {
+    openWrongNotesReportModal();
+  });
+
+  document.getElementById('btnCloseWrongPrintModal')?.addEventListener('click', () => {
+    document.getElementById('wrongNotesPrintModal')?.classList.remove('open');
+  });
+
+  document.getElementById('btnTriggerPrintWrongReport')?.addEventListener('click', () => {
+    document.body.classList.add('printing-wrong-notes');
+    window.print();
+    setTimeout(() => {
+      document.body.classList.remove('printing-wrong-notes');
+    }, 500);
+  });
 }
 
 async function refreshWrongManageTests(subject, lessonFilter = 'ALL') {
@@ -3641,21 +3765,51 @@ async function refreshWrongManageTests(subject, lessonFilter = 'ALL') {
   testSelect.innerHTML = '<option value="ALL">전체 테스트지</option>';
 
   let tests = [];
+  const candidateTestIds = new Set();
+
   try {
     const lId = (lessonFilter === 'ALL') ? null : (lessonFilter === 'UNASSIGNED' ? 'ALL_TESTS' : lessonFilter);
-    tests = await window.MSE_DB.apiGetPdfTests(subject, lId);
+    const recLessonId = (lessonFilter === 'ALL' || lessonFilter === 'UNASSIGNED') ? null : lessonFilter;
+
+    const [allTests, notes, records] = await Promise.all([
+      window.MSE_DB.apiGetPdfTests(subject, lId),
+      window.MSE_DB.getWrongAnswerNotes({ subject, lesson_id: lessonFilter }),
+      window.MSE_DB.apiGetTestRecords(recLessonId, 500, 'UNIT', subject)
+    ]);
+    tests = Array.isArray(allTests) ? allTests : [];
+
+    // 1) wrong_answers에 오답노트가 등록된 test_id
+    if (Array.isArray(notes)) {
+      notes.forEach(n => {
+        if (n.test_id) {
+          candidateTestIds.add(String(n.test_id));
+        }
+      });
+    }
+
+    // 2) test_records에서 오답이 발생한 test_id
+    if (Array.isArray(records)) {
+      records.forEach(r => {
+        const hasWrong = (r.correct_count !== undefined && r.total_count !== undefined && Number(r.correct_count) < Number(r.total_count))
+                      || (r.score !== undefined && Number(r.score) < 100);
+        if (hasWrong && r.test_id) {
+          candidateTestIds.add(String(r.test_id));
+        }
+      });
+    }
   } catch (e) {
-    tests = [];
+    console.warn('refreshWrongManageTests candidate tests error:', e);
   }
 
-  if (Array.isArray(tests)) {
-    tests.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.id;
-      opt.textContent = t.title;
-      testSelect.appendChild(opt);
-    });
-  }
+  // 필터링: 실제 오답이 발생했거나 오답노트가 있는 테스트지만 노출
+  const filteredTests = tests.filter(t => candidateTestIds.has(String(t.id)));
+
+  filteredTests.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.title;
+    testSelect.appendChild(opt);
+  });
 
   if (prevVal && Array.from(testSelect.options).some(o => o.value === prevVal)) {
     testSelect.value = prevVal;
@@ -3676,34 +3830,238 @@ async function refreshWrongManageView() {
   const currentSub = subSelect.value || APP_STATE.currentSubject || '영어';
 
   let lessons = [];
+  const candidateLessonIds = new Set();
+  let hasUnassigned = false;
+
   try {
-    lessons = await window.MSE_DB.apiGetLessons(currentSub);
+    const [allLessons, notes, records] = await Promise.all([
+      window.MSE_DB.apiGetLessons(currentSub),
+      window.MSE_DB.getWrongAnswerNotes({ subject: currentSub }),
+      window.MSE_DB.apiGetTestRecords(null, 500, 'UNIT', currentSub)
+    ]);
+    lessons = Array.isArray(allLessons) ? allLessons : [];
+
+    // 1) wrong_answers에 오답노트가 이미 1건 이상 등록된 단원
+    if (Array.isArray(notes)) {
+      notes.forEach(n => {
+        if (n.lesson_id) {
+          candidateLessonIds.add(String(n.lesson_id));
+        } else {
+          hasUnassigned = true;
+        }
+      });
+    }
+
+    // 2) test_records에서 오답이 1문제 이상 발생한 단원 (correct_count < total_count 또는 score < 100)
+    if (Array.isArray(records)) {
+      records.forEach(r => {
+        const hasWrong = (r.correct_count !== undefined && r.total_count !== undefined && Number(r.correct_count) < Number(r.total_count))
+                      || (r.score !== undefined && Number(r.score) < 100);
+        if (hasWrong) {
+          if (r.lesson_id) {
+            candidateLessonIds.add(String(r.lesson_id));
+          } else {
+            hasUnassigned = true;
+          }
+        }
+      });
+    }
   } catch (e) {
-    lessons = [];
+    console.warn('refreshWrongManageView candidate lessons error:', e);
   }
 
+  const prevSelected = lesSelect.value;
   lesSelect.innerHTML = '';
   const optAll = document.createElement('option');
   optAll.value = 'ALL';
   optAll.textContent = '전체 보기 (모든 단원)';
   lesSelect.appendChild(optAll);
 
-  const optUnassigned = document.createElement('option');
-  optUnassigned.value = 'UNASSIGNED';
-  optUnassigned.textContent = '⭐ [전체테스트] 단원 미지정';
-  lesSelect.appendChild(optUnassigned);
-
-  if (Array.isArray(lessons)) {
-    lessons.forEach(l => {
-      const opt = document.createElement('option');
-      opt.value = l.id;
-      opt.textContent = l.unit_name;
-      lesSelect.appendChild(opt);
-    });
+  if (hasUnassigned) {
+    const optUnassigned = document.createElement('option');
+    optUnassigned.value = 'UNASSIGNED';
+    optUnassigned.textContent = '⭐ [전체테스트] 단원 미지정';
+    lesSelect.appendChild(optUnassigned);
   }
 
-  await refreshWrongManageTests(currentSub, 'ALL');
-  await loadWrongNotesTable(currentSub, 'ALL', 'ALL');
+  // 필터링: 실제 오답이 발생했거나 오답노트가 있는 단원만 노출
+  const filteredLessons = lessons.filter(l => candidateLessonIds.has(String(l.id)));
+  filteredLessons.forEach(l => {
+    const opt = document.createElement('option');
+    opt.value = l.id;
+    opt.textContent = l.unit_name;
+    lesSelect.appendChild(opt);
+  });
+
+  if (prevSelected && Array.from(lesSelect.options).some(o => o.value === prevSelected)) {
+    lesSelect.value = prevSelected;
+  } else {
+    lesSelect.value = 'ALL';
+  }
+
+  await refreshWrongManageTests(currentSub, lesSelect.value);
+  await loadWrongNotesTable(currentSub, lesSelect.value, 'ALL');
+}
+
+// 선택된 단원들의 오답 모아보기 및 인쇄(A4 / PDF) 모달 오픈
+async function openWrongNotesReportModal() {
+  const subSelect = document.getElementById('wrongManageSubjectSelect');
+  const lesSelect = document.getElementById('wrongManageLessonSelect');
+  const testSelect = document.getElementById('wrongManageTestSelect');
+
+  const subject = subSelect?.value || APP_STATE.currentSubject || '영어';
+  const lessonFilter = lesSelect?.value || 'ALL';
+  const testFilter = testSelect?.value || 'ALL';
+
+  const modal = document.getElementById('wrongNotesPrintModal');
+  const area = document.getElementById('wrongPrintArea');
+  const subTitle = document.getElementById('wrongPrintSubTitle');
+  if (!modal || !area) return;
+
+  area.innerHTML = '<div style="text-align: center; padding: 40px; color: #8A7BAE;">오답노트 데이터를 취합하는 중...</div>';
+  modal.classList.add('open');
+
+  try {
+    const [notes, lessons] = await Promise.all([
+      window.MSE_DB.getWrongAnswerNotes({ subject, lesson_id: lessonFilter, test_id: testFilter }),
+      window.MSE_DB.apiGetLessons(subject)
+    ]);
+
+    const lessonMap = {};
+    if (Array.isArray(lessons)) {
+      lessons.forEach(l => { lessonMap[l.id] = l.unit_name; });
+    }
+
+    if (!notes || notes.length === 0) {
+      area.innerHTML = `
+        <div style="text-align: center; padding: 60px 20px; color: #64748B;">
+          <div style="font-size: 36px; margin-bottom: 10px;">🌸</div>
+          <h4 style="font-size: 16px; font-weight: 800; color: #334155; margin-bottom: 6px;">출력할 오답노트가 없습니다</h4>
+          <p style="font-size: 13px; color: #94A3B8;">선택한 단원에 등록된 오답 문항이 없습니다. 먼저 오답노트를 작성해보세요!</p>
+        </div>
+      `;
+      return;
+    }
+
+    const printLesFilter = document.getElementById('wrongPrintLessonFilter');
+    if (printLesFilter) {
+      printLesFilter.innerHTML = '<option value="ALL">전체 단원 보기</option>';
+    }
+
+    // 단원(lesson_id)별 그룹화
+    const groupMap = new Map();
+    notes.forEach(note => {
+      const lId = note.lesson_id != null ? String(note.lesson_id) : 'unassigned';
+      if (!groupMap.has(lId)) {
+        groupMap.set(lId, []);
+      }
+      groupMap.get(lId).push(note);
+    });
+
+    // 단원 필터 셀렉트 옵션 추가
+    if (printLesFilter) {
+      groupMap.forEach((gNotes, lId) => {
+        const opt = document.createElement('option');
+        opt.value = lId;
+        const name = lId === 'unassigned' ? '단원 미지정' : (lessonMap[lId] || `단원 #${lId}`);
+        opt.textContent = `${name} (${gNotes.length}개)`;
+        printLesFilter.appendChild(opt);
+      });
+
+      printLesFilter.onchange = () => {
+        const selected = printLesFilter.value;
+        const sections = area.querySelectorAll('.wrong-lesson-section');
+        sections.forEach(sec => {
+          if (selected === 'ALL' || sec.dataset.lessonId === selected) {
+            sec.style.display = 'block';
+          } else {
+            sec.style.display = 'none';
+          }
+        });
+      };
+    }
+
+    // 단원별 블록 렌더링 (인쇄 상단 헤더는 완전 제거)
+    let html = `<div id="wrongGroupsWrapper" style="display: flex; flex-direction: column; gap: 20px;">`;
+
+    groupMap.forEach((gNotes, lId) => {
+      const lName = lId === 'unassigned' ? '단원 미지정' : (lessonMap[lId] || `단원 #${lId}`);
+
+      html += `
+        <div class="wrong-lesson-section" data-lesson-id="${lId}" style="page-break-inside: avoid; break-inside: avoid;">
+          <!-- 단원명은 블록 맨 위에 1회만 표시 -->
+          <div class="wrong-lesson-title" style="font-size: 15.5px; font-weight: 900; color: #382B68; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 2px solid #6C52EE; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 16px;">📖</span>
+              <span>${lName}</span>
+            </div>
+            <span class="no-print" style="font-size: 12px; color: #8A7BAE; font-weight: 700;">${gNotes.length}개 문항</span>
+          </div>
+
+          <!-- 해당 단원의 note 카드 목록 컨테이너 -->
+          <div class="lesson-cards-container" style="display: flex; flex-direction: column; gap: 10px;">
+      `;
+
+      gNotes.forEach((note, idx) => {
+        const noteMemo = (note.notes || note.note || '').trim();
+
+        html += `
+          <div class="wrong-print-card" data-idx="${idx}" style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 8px; padding: 12px 14px; page-break-inside: avoid; break-inside: avoid; position: relative;">
+            <!-- 위/아래 이동 버튼 (인쇄 시 숨김, 동일 단원 내에서만 이동) -->
+            <div class="no-print" style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
+              <button type="button" class="btn-wrong-card-up"
+                style="background: #F1F5F9; border: 1px solid #CBD5E1; color: #475569; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer;"
+                title="위로 이동">▲ 위로</button>
+              <button type="button" class="btn-wrong-card-down"
+                style="background: #F1F5F9; border: 1px solid #CBD5E1; color: #475569; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer; margin-left: 4px;"
+                title="아래로 이동">▼ 아래로</button>
+            </div>
+
+            <!-- wrong_answers의 note 컬럼 내용만 표시 (단원명 제외) -->
+            <div style="background: #FAF8FE; border: 1px solid #E9D5FF; border-left: 4px solid #8B5CF6; border-radius: 6px; padding: 12px 14px; font-size: 13.5px; line-height: 1.65; color: #1E293B; white-space: pre-wrap; word-break: break-word;">
+              ${noteMemo ? noteMemo : '<span style="color: #94A3B8; font-size: 12.5px;">(작성된 오답노트 내용 없음)</span>'}
+            </div>
+          </div>
+        `;
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+    });
+
+    html += `</div>`;
+    area.innerHTML = html;
+
+    // 단원 내 카드 위 / 아래 순서 이동 이벤트 (단원 간 이동 불가 제약)
+    area.onclick = (e) => {
+      const upBtn = e.target.closest('.btn-wrong-card-up');
+      const downBtn = e.target.closest('.btn-wrong-card-down');
+      if (!upBtn && !downBtn) return;
+
+      const card = (upBtn || downBtn).closest('.wrong-print-card');
+      if (!card) return;
+
+      const container = card.closest('.lesson-cards-container');
+      if (!container) return; // 동일 단원 컨테이너 한정
+
+      if (upBtn) {
+        const prev = card.previousElementSibling;
+        if (prev && prev.classList.contains('wrong-print-card')) {
+          container.insertBefore(card, prev);
+        }
+      } else if (downBtn) {
+        const next = card.nextElementSibling;
+        if (next && next.classList.contains('wrong-print-card')) {
+          container.insertBefore(next, card);
+        }
+      }
+    };
+  } catch (err) {
+    console.error('openWrongNotesReportModal error:', err);
+    area.innerHTML = '<div style="text-align: center; padding: 30px; color: #EF4444;">오답 리포트를 불러오는 중 오류가 발생했습니다.</div>';
+  }
 }
 
 async function loadWrongNotesTable(subject, lessonFilter = 'ALL', testFilter = 'ALL') {
@@ -4221,6 +4579,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // 탭 네비게이션
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      // 탭 전환 시 실행 중인 타이머 일시정지
+      if (btn.dataset.tab !== 'test') {
+        pauseVocabTimer();
+      }
+      if (btn.dataset.tab !== 'paper_test') {
+        pauseWritingSessionTimer();
+      }
+
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
@@ -4239,6 +4605,9 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (btn.dataset.tab === 'paper_test') {
         if (APP_STATE.currentSubject === '영어') {
           initWritingSession();
+          if (APP_STATE.writingSession && APP_STATE.writingSession.elapsedSec > 0 && !APP_STATE.writingSession.isIdle) {
+            startWritingSessionTimer();
+          }
         } else {
           initPaperTestSession();
         }
@@ -4248,6 +4617,29 @@ document.addEventListener('DOMContentLoaded', () => {
         renderStampBoard();
       }
     });
+  });
+
+  // 브라우저 탭 이탈(document.hidden) 시 시험 타이머 일시정지 및 복귀 시 재개
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (APP_STATE.vocabTimer && APP_STATE.vocabTimer.isRunning) {
+        pauseVocabTimer();
+        APP_STATE.vocabTimer._pausedByVisibility = true;
+      }
+      if (APP_STATE.writingSession && APP_STATE.writingSession.isTiming) {
+        pauseWritingSessionTimer();
+        APP_STATE.writingSession._pausedByVisibility = true;
+      }
+    } else {
+      if (APP_STATE.vocabTimer && APP_STATE.vocabTimer._pausedByVisibility) {
+        APP_STATE.vocabTimer._pausedByVisibility = false;
+        resumeVocabTimer();
+      }
+      if (APP_STATE.writingSession && APP_STATE.writingSession._pausedByVisibility) {
+        APP_STATE.writingSession._pausedByVisibility = false;
+        startWritingSessionTimer();
+      }
+    }
   });
 
   // PDF 시험지 모드: 실전 시험 모드 단독 고정
@@ -4367,6 +4759,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('modalBtnRetakeAll').addEventListener('click', () => {
     resModal.classList.remove('open');
+    if (APP_STATE.lastTestCategory === 'WRITING') {
+      retakeAllWritingQuestions();
+      return;
+    }
     APP_STATE.testMode = 'ALL';
     updateTestModeButtons();
     initTestSession();
@@ -4400,6 +4796,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 서술형 영작 버튼 이벤트 바인딩
   document.getElementById('btnWritingPrev')?.addEventListener('click', () => {
     if (APP_STATE.currentWritingIndex > 0) {
+      saveWritingCurrentAnswers();
       APP_STATE.currentWritingIndex--;
       renderWritingCurrentQuestion();
     }
@@ -4407,6 +4804,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btnWritingNext')?.addEventListener('click', () => {
     if (APP_STATE.currentWritingIndex < (APP_STATE.writingSentences.length - 1)) {
+      saveWritingCurrentAnswers();
       APP_STATE.currentWritingIndex++;
       renderWritingCurrentQuestion();
     }
@@ -4427,6 +4825,25 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnWritingGrade')?.addEventListener('click', () => {
     gradeWritingCurrentQuestion();
   });
+
+  document.getElementById('btnWritingFinish')?.addEventListener('click', () => {
+    finishWritingSession();
+  });
+
+  document.getElementById('btnWritingFinishHeader')?.addEventListener('click', () => {
+    finishWritingSession();
+  });
+
+  // 서술형 정답 및 해설 모달 액션 버튼
+  document.getElementById('btnWritingExplRetakeAll')?.addEventListener('click', () => {
+    retakeAllWritingQuestions();
+  });
+  document.getElementById('btnWritingExplClose')?.addEventListener('click', () => {
+    document.getElementById('writingExplanationModal')?.classList.remove('open');
+  });
+  document.getElementById('btnCloseWritingExplModal')?.addEventListener('click', () => {
+    document.getElementById('writingExplanationModal')?.classList.remove('open');
+  });
 });
 
 // ========================================================
@@ -4442,9 +4859,142 @@ async function fetchWritingSentences(lessonId) {
     const list = await window.MSE_DB.apiGetWritingSentences(lessonId);
     APP_STATE.writingSentences = list || [];
     APP_STATE.currentWritingIndex = 0;
+    APP_STATE.writingAnswers = {};
+    APP_STATE.writingFirstResults = {};
+
+    if (APP_STATE.writingSessionTimerInterval) {
+      clearInterval(APP_STATE.writingSessionTimerInterval);
+      APP_STATE.writingSessionTimerInterval = null;
+    }
+    APP_STATE.writingSession = {
+      elapsedSec: 0,
+      isTiming: false,
+      isIdle: false,
+      lastTick: null,
+      lastInputTime: null,
+      _pausedByVisibility: false
+    };
   } catch (e) {
     console.error('fetchWritingSentences error:', e);
     APP_STATE.writingSentences = [];
+  }
+}
+
+// 서술형 영작 전체 누적 타이머 헬퍼 (문제 이동 시 리셋되지 않고 계속 누적 카운트)
+function updateWritingSessionTimerBadge() {
+  const badge = document.getElementById('writingTimerBadge');
+  if (!badge) return;
+  const ws = APP_STATE.writingSession;
+  if (!ws) return;
+
+  if (ws.isTiming) {
+    badge.textContent = `⏱️ ${formatTimeMMSS(ws.elapsedSec)}`;
+    badge.style.color = '#7B61FF';
+  } else if (ws.isIdle) {
+    badge.textContent = `⏱️ ${formatTimeMMSS(ws.elapsedSec)} (자리비움)`;
+    badge.style.color = '#F59E0B';
+  } else if (ws.elapsedSec > 0) {
+    badge.textContent = `⏱️ ${formatTimeMMSS(ws.elapsedSec)} (일시정지)`;
+    badge.style.color = '#6B7280';
+  } else {
+    badge.textContent = '⏱️ 00:00 (입력 시 시작)';
+    badge.style.color = '#9CA3AF';
+  }
+}
+
+function startWritingSessionTimer() {
+  if (!APP_STATE.writingSession) {
+    APP_STATE.writingSession = {
+      elapsedSec: 0,
+      isTiming: false,
+      isIdle: false,
+      lastTick: null,
+      lastInputTime: null,
+      _pausedByVisibility: false
+    };
+  }
+  const ws = APP_STATE.writingSession;
+  ws.isTiming = true;
+  ws.isIdle = false;
+  ws.lastTick = Date.now();
+  ws.lastInputTime = Date.now();
+
+  if (APP_STATE.writingSessionTimerInterval) {
+    clearInterval(APP_STATE.writingSessionTimerInterval);
+  }
+
+  updateWritingSessionTimerBadge();
+
+  APP_STATE.writingSessionTimerInterval = setInterval(() => {
+    if (!ws.isTiming) return;
+
+    // 30초 이상 키 입력 없으면 타이머 일시정지 (자리비움 감지)
+    if (Date.now() - ws.lastInputTime >= 30000) {
+      ws.isTiming = false;
+      ws.isIdle = true;
+      if (APP_STATE.writingSessionTimerInterval) {
+        clearInterval(APP_STATE.writingSessionTimerInterval);
+        APP_STATE.writingSessionTimerInterval = null;
+      }
+      updateWritingSessionTimerBadge();
+      return;
+    }
+
+    const now = Date.now();
+    const deltaSec = Math.round((now - ws.lastTick) / 1000);
+    if (deltaSec >= 1) {
+      ws.elapsedSec += deltaSec;
+      ws.lastTick = now;
+      updateWritingSessionTimerBadge();
+    }
+  }, 1000);
+}
+
+function pauseWritingSessionTimer(isIdle = false) {
+  const ws = APP_STATE.writingSession;
+  if (!ws) return;
+  if (ws.isTiming) {
+    if (ws.lastTick) {
+      const deltaSec = Math.round((Date.now() - ws.lastTick) / 1000);
+      if (deltaSec >= 1) ws.elapsedSec += deltaSec;
+    }
+    ws.isTiming = false;
+  }
+  if (isIdle) ws.isIdle = true;
+
+  if (APP_STATE.writingSessionTimerInterval) {
+    clearInterval(APP_STATE.writingSessionTimerInterval);
+    APP_STATE.writingSessionTimerInterval = null;
+  }
+  updateWritingSessionTimerBadge();
+}
+
+function onWritingUserInput() {
+  if (!APP_STATE.writingSession) {
+    APP_STATE.writingSession = {
+      elapsedSec: 0,
+      isTiming: false,
+      isIdle: false,
+      lastTick: null,
+      lastInputTime: null,
+      _pausedByVisibility: false
+    };
+  }
+  const ws = APP_STATE.writingSession;
+  ws.lastInputTime = Date.now();
+
+  if (!ws.isTiming) {
+    startWritingSessionTimer();
+  }
+}
+
+// 현재 슬롯에 입력된 단어들 임시 저장 (문제 이동 시 보존)
+function saveWritingCurrentAnswers() {
+  if (!APP_STATE.writingAnswers) APP_STATE.writingAnswers = {};
+  const idx = APP_STATE.currentWritingIndex;
+  const slots = document.querySelectorAll('#writingSlotsContainer .writing-word-slot');
+  if (slots.length > 0) {
+    APP_STATE.writingAnswers[idx] = Array.from(slots).map(s => s.value);
   }
 }
 
@@ -4467,6 +5017,19 @@ function initWritingSession() {
 
   if (writingEmpty) writingEmpty.style.display = 'none';
   if (writingCard) writingCard.style.display = 'flex';
+
+  if (!APP_STATE.writingAnswers) APP_STATE.writingAnswers = {};
+  if (!APP_STATE.writingFirstResults) APP_STATE.writingFirstResults = {};
+  if (!APP_STATE.writingSession) {
+    APP_STATE.writingSession = {
+      elapsedSec: 0,
+      isTiming: false,
+      isIdle: false,
+      lastTick: null,
+      lastInputTime: null,
+      _pausedByVisibility: false
+    };
+  }
 
   renderWritingCurrentQuestion();
 }
@@ -4501,6 +5064,7 @@ function renderWritingCurrentQuestion() {
     slotsContainer.innerHTML = '';
 
     const rawWords = (q.english_sentence || '').trim().split(/\s+/).filter(Boolean);
+    const savedWords = (APP_STATE.writingAnswers && APP_STATE.writingAnswers[idx]) || [];
 
     rawWords.forEach((rawWord, wordIdx) => {
       // 끝 구두점 분리: 약어(R.C., U.S.A. 등) 내부의 온점은 보존하고, 맨 끝 문장부호(, 또는 종결 마침표)만 분리
@@ -4542,12 +5106,16 @@ function renderWritingCurrentQuestion() {
       input.autocapitalize = 'off';
       input.spellcheck = false;
 
+      // 기존 입력값 복원
+      input.value = savedWords[wordIdx] || '';
+
       // 단어 길이에 비례한 밑줄 폭 설정
       const slotWidth = Math.max(48, Math.min(220, cleanWord.length * 13 + 16));
       input.style.width = `${slotWidth}px`;
 
-      // 키보드 편의 기능
+      // 키보드 편의 기능 & 첫 키 입력 시 누적 타이머 시작
       input.addEventListener('keydown', (e) => {
+        onWritingUserInput();
         if (e.key === ' ' || e.key === 'Tab' || e.key === 'Enter') {
           e.preventDefault();
           const nextSlot = slotsContainer.querySelector(`.writing-word-slot[data-idx="${wordIdx + 1}"]`);
@@ -4563,16 +5131,19 @@ function renderWritingCurrentQuestion() {
             if (prevSlot) {
               prevSlot.focus();
               prevSlot.value = '';
+              saveWritingCurrentAnswers();
             }
           }
         }
       });
 
-      // 타이핑 시 피드백 리셋
+      // 타이핑 시 피드백 리셋 & 입력값 저장
       input.addEventListener('input', () => {
+        onWritingUserInput();
         input.classList.remove('correct', 'wrong');
         const fb = document.getElementById('writingFeedbackBox');
         if (fb) fb.style.display = 'none';
+        saveWritingCurrentAnswers();
       });
 
       slotWrapper.appendChild(input);
@@ -4601,17 +5172,25 @@ function renderWritingCurrentQuestion() {
   // 5. 마이크 상태 초기화
   const micStatus = document.getElementById('writingMicStatus');
   if (micStatus) micStatus.textContent = '음성 입력';
+
+  // 6. 누적 타이머 배지 갱신 (리셋되지 않음)
+  updateWritingSessionTimerBadge();
 }
 
-// 스마트 채점
+// 스마트 채점: 단순 정답/오답 확인 피드백 제공 (DB 즉시 저장 X, 최초 채점 결과 고정, 타이머 계속 진행)
 async function gradeWritingCurrentQuestion() {
   const list = APP_STATE.writingSentences;
   if (!list || list.length === 0) return;
-  const q = list[APP_STATE.currentWritingIndex];
+  const idx = APP_STATE.currentWritingIndex;
+  const q = list[idx];
   if (!q) return;
 
   const slots = document.querySelectorAll('#writingSlotsContainer .writing-word-slot');
   if (slots.length === 0) return;
+
+  // 채점하기를 눌러도 시간은 리셋되거나 멈추지 않고 계속 누적 카운트
+  onWritingUserInput();
+  saveWritingCurrentAnswers();
 
   let correctCount = 0;
   let wrongCount = 0;
@@ -4635,7 +5214,7 @@ async function gradeWritingCurrentQuestion() {
 
   const isAllCorrect = (wrongCount === 0 && correctCount === slots.length);
 
-  // 피드백 박스 업데이트
+  // 피드백 박스 업데이트 (화면 확인용)
   const fbBox = document.getElementById('writingFeedbackBox');
   const fbTitle = document.getElementById('writingFeedbackTitle');
   const fbAnswer = document.getElementById('writingCorrectAnswer');
@@ -4657,31 +5236,197 @@ async function gradeWritingCurrentQuestion() {
     }
   }
 
-  // 통계 업데이트 (DB & 로컬)
-  try {
-    await window.MSE_DB.apiUpdateWritingSentenceStats(q.id, isAllCorrect);
-  } catch (err) {
-    console.error('apiUpdateWritingSentenceStats error:', err);
+  // ⭐ 최초 채점 결과 보존 (첫 채점 시에만 영구 기록, 이후 재채점은 단순 화면 확인용)
+  const userSentence = Array.from(slots).map(s => s.value.trim()).join(' ');
+  if (!APP_STATE.writingFirstResults[idx]) {
+    APP_STATE.writingFirstResults[idx] = {
+      sentenceId: q.id,
+      sentenceNo: q.sentence_no,
+      isCorrect: isAllCorrect,
+      correctCount: correctCount,
+      wrongCount: wrongCount,
+      totalSlots: slots.length,
+      myAnswer: userSentence || '-'
+    };
   }
 
-  // 성적 리포트 저장
+  updateWritingSessionTimerBadge();
+}
+
+// 서술형 영작 시험 최종 완료 및 성적 저장
+async function finishWritingSession() {
+  const list = APP_STATE.writingSentences || [];
+  const totalQ = list.length;
+  if (totalQ === 0) {
+    alert('등록된 서술형 문제가 없습니다.');
+    return;
+  }
+
+  saveWritingCurrentAnswers();
+  pauseWritingSessionTimer();
+
+  const solvedIndices = Object.keys(APP_STATE.writingFirstResults || {});
+  const solvedQ = solvedIndices.length;
+
+  if (!confirm(`총 ${totalQ}문제 중 ${solvedQ}문제를 풀었습니다. 시험을 완료할까요?`)) {
+    // 취소 시 타이머 재개
+    onWritingUserInput();
+    return;
+  }
+
+  let correctCount = 0;
+  solvedIndices.forEach(idxStr => {
+    const res = APP_STATE.writingFirstResults[idxStr];
+    if (res && res.isCorrect) correctCount++;
+  });
+
+  const score = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0;
+  let starsWon = 0;
+  if (score >= 100) starsWon = 5;
+  else if (score >= 90) starsWon = 4;
+  else if (score >= 80) starsWon = 3;
+  else if (score >= 70) starsWon = 2;
+  else if (score >= 60) starsWon = 1;
+
+  const durationSeconds = Math.max(1, APP_STATE.writingSession?.elapsedSec || 1);
+
+  // 1. test_records 테이블에 최종 결과 1회 종합 저장
   try {
     const saveFunc = window.MSE_DB?.apiSubmitTest || window.MSE_DB?.apiSaveTestRecord || window.MSE_DB?.apiInsertTestRecord;
     if (saveFunc) {
       await saveFunc({
         lessonId: APP_STATE.currentLessonId,
-        score: isAllCorrect ? 100 : Math.round((correctCount / slots.length) * 100),
-        totalCount: slots.length,
-        correctCount,
-        wrongCount,
-        starsWon: isAllCorrect ? 1 : 0,
+        round: 1,
+        testMode: 'ALL',
+        score: score,
+        correctCount: correctCount,
+        totalCount: totalQ,
+        starsWon: starsWon,
+        wrongItems: [],
+        correctWordIds: [],
         testCategory: 'WRITING',
-        testTitle: `[서술형] ${APP_STATE.currentLessonName || '영작'} Q${q.sentence_no}`
+        testTitle: `[서술형] ${APP_STATE.currentLessonName || '영작'} (총 ${totalQ}문항)`,
+        testDate: new Date().toISOString(),
+        durationSeconds: durationSeconds
       });
     }
   } catch (err) {
-    console.error('apiSubmitTest error:', err);
+    console.error('apiSubmitTest writing error:', err);
   }
+
+  // 2. writing_sentences 문장별 누적 통계 일괄 갱신 (최초 채점 결과 기준)
+  for (const idxStr of solvedIndices) {
+    const res = APP_STATE.writingFirstResults[idxStr];
+    if (res && res.sentenceId) {
+      try {
+        await window.MSE_DB.apiUpdateWritingSentenceStats(res.sentenceId, res.isCorrect);
+      } catch (e) {
+        console.warn('apiUpdateWritingSentenceStats batch error:', e);
+      }
+    }
+  }
+
+  // 3. 축하 폭죽 연출 및 결과 모달
+  triggerConfetti();
+  showResultModal({
+    isWriting: true,
+    customTitle: `[서술형] ${APP_STATE.currentLessonName || '영작'}`,
+    score,
+    correctCount,
+    totalCount: totalQ,
+    starsWon,
+    durationSeconds
+  });
+}
+
+// 서술형 영작 전체 문제 정답 및 해설 보기 모달 열기
+function openWritingExplanationModal() {
+  const modal = document.getElementById('writingExplanationModal');
+  const container = document.getElementById('writingExplListContainer');
+  if (!modal || !container) return;
+
+  const list = APP_STATE.writingSentences || [];
+  container.innerHTML = '';
+
+  list.forEach((q, idx) => {
+    const res = (APP_STATE.writingFirstResults && APP_STATE.writingFirstResults[idx]) || null;
+    const isGraded = Boolean(res);
+    const isCorrect = isGraded ? Boolean(res.isCorrect) : false;
+
+    // 나의답: 저장된 답변 또는 현재 슬롯값 또는 미작성
+    let myAns = (res && res.myAnswer) || '';
+    if (!myAns && APP_STATE.writingAnswers && APP_STATE.writingAnswers[idx]) {
+      myAns = APP_STATE.writingAnswers[idx].join(' ').trim();
+    }
+    if (!myAns) myAns = '- (미작성)';
+
+    const card = document.createElement('div');
+    card.style.cssText = `
+      background: #FFFFFF;
+      border: 1.5px solid ${isGraded ? (isCorrect ? '#86EFAC' : '#FCA5A5') : '#E5E7EB'};
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    `;
+
+    const badgeHtml = isGraded
+      ? (isCorrect
+          ? `<span style="background: #DEF7EC; color: #03543F; font-weight: 800; font-size: 12px; padding: 3px 8px; border-radius: 6px;">✅ 정답</span>`
+          : `<span style="background: #FDE8E8; color: #9B1C1C; font-weight: 800; font-size: 12px; padding: 3px 8px; border-radius: 6px;">❌ 오답</span>`)
+      : `<span style="background: #F3F4F6; color: #6B7280; font-weight: 700; font-size: 12px; padding: 3px 8px; border-radius: 6px;">미응시</span>`;
+
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-weight: 900; font-size: 14px; color: #382B68;">Q${idx + 1}</span>
+        ${badgeHtml}
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 7px; font-size: 13.5px; line-height: 1.5;">
+        <div>
+          <span style="font-weight: 800; color: #7B6E9E; display: inline-block; width: 56px;">해석</span>
+          <span style="color: #1F2937; font-weight: 600;">${q.korean_prompt || '-'}</span>
+        </div>
+        <div>
+          <span style="font-weight: 800; color: #059669; display: inline-block; width: 56px;">정답</span>
+          <span style="color: #047857; font-weight: 800;">${q.english_sentence || '-'}</span>
+        </div>
+        <div>
+          <span style="font-weight: 800; color: #6366F1; display: inline-block; width: 56px;">나의답</span>
+          <span style="color: ${isCorrect ? '#1F2937' : '#DC2626'}; font-weight: 700;">${myAns}</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  modal.classList.add('open');
+}
+
+// 서술형 영작 모든 문제 다시 풀기 (1번 문제로 이동 및 초기화)
+function retakeAllWritingQuestions() {
+  document.getElementById('resultModal')?.classList.remove('open');
+  document.getElementById('writingExplanationModal')?.classList.remove('open');
+
+  // 상태 초기화
+  APP_STATE.writingAnswers = {};
+  APP_STATE.writingFirstResults = {};
+  APP_STATE.currentWritingIndex = 0;
+
+  // 누적 타이머 초기화
+  if (APP_STATE.writingSessionTimerInterval) {
+    clearInterval(APP_STATE.writingSessionTimerInterval);
+    APP_STATE.writingSessionTimerInterval = null;
+  }
+  APP_STATE.writingSession = {
+    elapsedSec: 0,
+    isTiming: false,
+    isIdle: false,
+    lastTick: null,
+    lastInputTime: null,
+    _pausedByVisibility: false
+  };
+
+  updateWritingSessionTimerBadge();
+  renderWritingCurrentQuestion();
 }
 
 // 힌트 보기
@@ -4766,6 +5511,10 @@ function toggleWritingSpeechRecognition() {
           slots[idx].classList.remove('correct', 'wrong');
         }
       });
+
+      if (spokenWords.length > 0) {
+        onWritingUserInput(APP_STATE.currentWritingIndex);
+      }
 
       if (isFinal && slots.length > 0) {
         const nextIdx = Math.min(spokenWords.length, slots.length - 1);
