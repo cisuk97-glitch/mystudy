@@ -1328,11 +1328,25 @@ function setupPdfDropzone() {
 // 설정 서랍 및 단원 관리 (팝업 모달 & 단어장 PDF 버튼)
 // --------------------------------------------------------
 function setupSettingsDrawer() {
-  // 단어장/서술형 PDF 통합 등록 버튼 -> 등록 분기 모달 오픈
+  // 단어장 등록 버튼 -> 등록 모달 오픈
   const uploadVocabBtn = document.getElementById('btnUploadVocabPdf');
   if (uploadVocabBtn) {
     uploadVocabBtn.addEventListener('click', () => {
-      openDirectVocabModal();
+      document.getElementById('drawerSidebar')?.classList.remove('open');
+      const ov = document.getElementById('drawerOverlay');
+      if (ov) ov.style.display = 'none';
+      openUploadChoiceModal('VOCAB');
+    });
+  }
+
+  // 서술형 영작 직접 등록 버튼 -> 서술형 직접 등록 모달 오픈
+  const directWritingBtn = document.getElementById('btnOpenDirectWritingModalDrawer');
+  if (directWritingBtn) {
+    directWritingBtn.addEventListener('click', () => {
+      document.getElementById('drawerSidebar')?.classList.remove('open');
+      const ov = document.getElementById('drawerOverlay');
+      if (ov) ov.style.display = 'none';
+      openDirectWritingModal();
     });
   }
 
@@ -2004,7 +2018,10 @@ function openDirectVocabModal(lessonId = null) {
   const previewList = document.getElementById('directVocabPreviewList');
   const submitBtn = document.getElementById('btnSubmitDirectVocab');
 
-  if (!modal) return;
+  if (!modal) {
+    openUploadChoiceModal('VOCAB');
+    return;
+  }
 
   // 단원 목록 로드
   if (sel) {
