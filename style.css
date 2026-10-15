@@ -449,7 +449,7 @@ body {
 
 .word-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 9px 12px;
   background: #FCFBFF;
@@ -457,6 +457,8 @@ body {
   border-radius: 10px;
   transition: background 0.15s, border-color 0.15s;
   cursor: pointer;
+  box-sizing: border-box;
+  height: 100%;
 }
 
 .word-card:hover {
@@ -466,7 +468,7 @@ body {
 
 .word-card-left {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   min-width: 0;
   flex: 1;
@@ -507,10 +509,11 @@ body {
   color: #5C4B82;
   text-align: right;
   margin-left: 8px;
-  max-width: 48%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1.2;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  line-height: 1.45;
 }
 
 /* 가림판 마스크 효과 */
