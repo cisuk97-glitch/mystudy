@@ -441,6 +441,9 @@ function renderStudyPage() {
     const isEngMasked = (APP_STATE.maskMode === 'english' || APP_STATE.maskMode === 'all') && !isIndivRevealed;
     const isKorMasked = (APP_STATE.maskMode === 'korean' || APP_STATE.maskMode === 'all') && !isIndivRevealed;
 
+    const formattedMeaning = (word.meaning || '')
+      .replace(/\s*(≒|↔)/g, '<br>$1 ');
+
     card.innerHTML = `
       <div class="word-card-left">
         <span class="word-num">${word.word_no || word.id}</span>
@@ -453,7 +456,7 @@ function renderStudyPage() {
         </div>
       </div>
       <div class="word-meaning-box ${isKorMasked ? 'masked-text' : ''}" data-wordkey="${wordKey}" title="${word.meaning}">
-        ${word.meaning}
+        ${formattedMeaning}
       </div>
     `;
 
@@ -474,6 +477,20 @@ function renderStudyPage() {
     });
 
     grid.appendChild(card);
+  });
+
+  // 한 페이지 내 가장 큰 카드의 높이에 맞춰 모든 카드 높이 균일화
+  requestAnimationFrame(() => {
+    const cards = grid.querySelectorAll('.word-card');
+    if (!cards.length) return;
+    cards.forEach(c => (c.style.minHeight = 'auto'));
+    let maxHeight = 0;
+    cards.forEach(c => {
+      if (c.offsetHeight > maxHeight) maxHeight = c.offsetHeight;
+    });
+    cards.forEach(c => {
+      c.style.minHeight = `${maxHeight}px`;
+    });
   });
 }
 
