@@ -263,7 +263,6 @@
           <thead>
             <tr>
               <th>단어</th>
-              <th>품사</th>
               <th>교재 공식 뜻</th>
               <th>학생 작성 답안</th>
               <th>기록 시간</th>
@@ -271,7 +270,7 @@
           </thead>
           <tbody id="reportWrongLogsBody">
             <tr>
-              <td colspan="5" style="text-align:center; color:#9587B6;">오답 기록이 없습니다.</td>
+              <td colspan="4" style="text-align:center; color:#9587B6;">오답 기록이 없습니다.</td>
             </tr>
           </tbody>
         </table>
@@ -460,7 +459,8 @@
             <h3 style="font-size: 17px; font-weight: 900; color: #382B68; margin: 0;" id="writingExplModalTitle">
               서술형 영작 정답 및 해설
             </h3>
-            <span style="font-size: 12px; color: #7B6E9E;" id="writingExplModalSub">모든 문제의 풀이 결과, 해석, 정답, 나의 답안을 확인하세요.</span>
+            <span style="font-size: 12px; color: #7B6E9E;" id="writingExplModalSub">모든 문제의 풀이 결과, 해석, 정답, 나의 답안을
+              확인하세요.</span>
           </div>
         </div>
         <button class="drawer-close-btn" id="btnCloseWritingExplModal">✕</button>
@@ -473,7 +473,8 @@
       </div>
 
       <!-- 모달 하단 버튼 바 -->
-      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #F0EBF8; padding-top: 10px; gap: 8px; flex-wrap: wrap;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #F0EBF8; padding-top: 10px; gap: 8px; flex-wrap: wrap;">
         <div style="font-size: 12px; color: #8C7FA9;">
           * 최초 채점 결과를 기준으로 정오답이 판정됩니다.
         </div>
@@ -571,7 +572,8 @@
       </div>
 
       <!-- 3. 단어장 텍스트 직접 입력 영역 -->
-      <div id="uploadChoiceVocabInputSection" style="display: flex; flex-direction: column; margin-bottom: 12px; flex: 1;">
+      <div id="uploadChoiceVocabInputSection"
+        style="display: flex; flex-direction: column; margin-bottom: 12px; flex: 1;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
           <label class="setting-label" style="margin-bottom: 0;">📋 단어 및 뜻 목록 붙여넣기</label>
           <span id="uploadChoiceVocabCountBadge" style="font-size: 11px; font-weight: 800; color: #16A34A;">0개 감지</span>
@@ -587,7 +589,8 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
           <span style="font-size: 12px; font-weight: 800; color: #4B3A72;">🔍 단어 목록 미리보기</span>
           <span id="uploadChoiceStatusBadge"
-            style="font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: #E2E8F0; color: #64748B;">단어를 입력해주세요</span>
+            style="font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: #E2E8F0; color: #64748B;">단어를
+            입력해주세요</span>
         </div>
         <div id="uploadChoicePreviewList"
           style="max-height: 140px; overflow-y: auto; font-size: 12px; color: #4B3A72; border-top: 1px solid #ECE7F6; padding-top: 6px;">
@@ -597,8 +600,8 @@
 
       <div style="display: flex; gap: 8px;">
         <button type="button" class="action-btn btn-prev" id="btnCancelUploadChoiceModal" style="flex:1;">취소</button>
-        <button type="button" class="action-btn btn-next" id="btnSubmitUploadChoiceModal" style="flex:2;"
-          disabled>🚀 단어 클라우드 등록하기</button>
+        <button type="button" class="action-btn btn-next" id="btnSubmitUploadChoiceModal" style="flex:2;" disabled>🚀 단어
+          클라우드 등록하기</button>
       </div>
     </div>
   </div>
@@ -697,7 +700,7 @@
             <line x1="3" y1="18" x2="21" y2="18"></line>
           </svg>
         </button>
-        <span class="slim-title">MyTest</span>
+        <img src="assets/mascot_bunny.png" alt="마스코트 로고" class="header-logo-mascot" />
 
         <!-- 메인 페이지 과목 및 단원 선택 바 + 시험지 선택 바 -->
         <div class="main-selector-wrap" id="mainSelectorWrap">
@@ -720,22 +723,22 @@
     <!-- Navigation Tabs -->
     <nav class="tabs-bar" role="tablist">
       <button class="tab-btn active" data-tab="study" role="tab" id="tabBtnStudy">
-        <span>📖</span> 단어 공부 (20개씩)
+        단어 공부 (20개씩)
       </button>
       <button class="tab-btn" data-tab="test" role="tab" id="tabBtnTest">
-        <span>✍️</span> 주관식 단어 시험
+        주관식 단어 시험
       </button>
       <button class="tab-btn" data-tab="paper_test" role="tab" id="tabBtnPaperTest">
-        <span>🖋️</span> 서술형 영작
+        서술형 영작
       </button>
       <button class="tab-btn" data-tab="ranking" data-tab-name="ranking" role="tab" id="tabBtnRanking">
-        <span>🔥</span> 취약 단어 분석
+        취약 단어 분석
       </button>
       <button class="tab-btn" data-tab="final_mistakes" role="tab" id="tabBtnFinalMistakes">
-        <span>🖨️</span> 파이널 오답 단어장
+        파이널 오답 단어장
       </button>
       <button class="tab-btn" data-tab="rewards" role="tab" id="tabBtnRewards">
-        <span>⭐️</span> 별 보관함
+        별 보관함
       </button>
     </nav>
 
@@ -771,7 +774,7 @@
             모든 문제 풀기 (40단어)
           </button>
           <button class="mode-pill" id="modeBtnWrong" data-mode="WRONG_ONLY">
-            오답만 집중 풀기 🔥
+            오답만 집중 풀기
           </button>
         </div>
 
@@ -791,7 +794,9 @@
             <div class="progress-bar-fill" id="testProgressBar"></div>
           </div>
           <span class="progress-counter" id="testProgressText">0 / 40</span>
-          <span class="test-timer-badge" id="vocabTestTimerBadge" style="margin-left: 8px; font-weight: 800; color: #7B61FF; font-size: 13px; min-width: 60px; text-align: right;">⏱️ 00:00</span>
+          <span class="test-timer-badge" id="vocabTestTimerBadge"
+            style="margin-left: 8px; font-weight: 800; color: #7B61FF; font-size: 13px; min-width: 60px; text-align: right;">⏱️
+            00:00</span>
         </div>
       </div>
 
@@ -807,7 +812,7 @@
       <!-- Submit Panel -->
       <div class="test-submit-panel">
         <button class="btn-submit-all" id="btnSubmitAll">
-          <span>✨</span> 주관식 답안 한 번에 채점하고 클라우드에 저장! <span>⭐️</span>
+          <span>✨</span> 주관식 답안 채점 후 저장! <span>⭐️</span>
         </button>
         <div style="font-size: 12px; color: #8C80AF; font-weight: 600;">
           * 60점 이상 별 1개 + 10점마다 별 1개 추가 (최대 5개)
@@ -837,10 +842,12 @@
             <div class="writing-header-left">
               <span class="writing-q-badge" id="writingQBadge">Q 1 / 15</span>
               <span class="writing-lesson-title" id="writingLessonTitle">단원명</span>
-              <span class="writing-timer-badge" id="writingTimerBadge" style="margin-left: 10px; font-weight: 800; color: #7B61FF; font-size: 13px;">⏱️ 00:00 (입력 시 시작)</span>
+              <span class="writing-timer-badge" id="writingTimerBadge"
+                style="margin-left: 10px; font-weight: 800; color: #7B61FF; font-size: 13px;">⏱️ 00:00 (입력 시 시작)</span>
             </div>
             <div class="writing-header-nav">
-              <button type="button" class="btn-micro" id="btnWritingFinishHeader" style="background: #10B981; color: #fff; font-weight: 800;" title="시험 완료">🏁 완료</button>
+              <button type="button" class="btn-micro" id="btnWritingFinishHeader"
+                style="background: #94CBF8; color: #fff; font-weight: 800; border: none;" title="시험 완료"> 완료</button>
               <button type="button" class="btn-micro" id="btnWritingPrev" title="이전 문제">◀ 이전</button>
               <button type="button" class="btn-micro" id="btnWritingNext" title="다음 문제">다음 ▶</button>
             </div>
@@ -872,10 +879,11 @@
 
           <!-- 5. 하단 컨트롤 버튼 바: [🏁 시험 완료], [💡 힌트 보기], [🔄 다시 쓰기], [✅ 채점하기] -->
           <div class="writing-action-bar">
-            <button type="button" class="action-btn" id="btnWritingFinish" style="background: #10B981; color: #fff; border-color: #059669; font-weight: 800;">🏁 시험 완료</button>
-            <button type="button" class="action-btn btn-prev" id="btnWritingHint">💡 힌트 보기</button>
-            <button type="button" class="action-btn btn-prev" id="btnWritingReset">🔄 다시 쓰기</button>
-            <button type="button" class="action-btn btn-next" id="btnWritingGrade">✅ 채점하기</button>
+            <button type="button" class="action-btn btn-next" id="btnWritingFinish"
+              style="font-weight: 800;"> 시험 완료</button>
+            <button type="button" class="action-btn btn-prev" id="btnWritingHint"> 힌트 보기</button>
+            <button type="button" class="action-btn btn-prev" id="btnWritingReset"> 다시 쓰기</button>
+            <button type="button" class="action-btn btn-next" id="btnWritingGrade"> 채점하기</button>
           </div>
         </div>
       </div>
@@ -1067,7 +1075,7 @@
       <div class="ranking-header">
         <div>
           <h2 style="font-size: 18px; font-weight: 900; color: #382B68;">
-            🔥 나의 취약 단어 정밀 분석표
+            나의 취약 단어 정밀 분석표
           </h2>
           <p style="font-size: 13px; color: #7E739B;">
             테스트를 치를 때마다 Supabase 클라우드에 누적된 오답 횟수를 기준으로 가장 많이 틀린 단어들입니다.
@@ -1086,7 +1094,7 @@
       <div class="final-mistakes-header">
         <div>
           <h2 style="font-size: 18px; font-weight: 900; color: #382B68; margin-bottom: 4px;">
-            🖨️ 내신 대비 파이널 오답 단어장
+            내신 대비 파이널 오답 단어장
           </h2>
           <p style="font-size: 13px; color: #7E739B;">
             지금까지 한 번이라도 틀렸던 모든 핵심 단어들을 모아 시험 직전 최종 점검하고 A4로 인쇄할 수 있습니다.
@@ -1120,6 +1128,11 @@
     </section>
   </main>
 
+  <!-- 우측 하단 상시 노출 마스코트 토끼 -->
+  <div class="study-mascot-wrap" aria-hidden="true">
+    <img src="assets/mascot_bunny.png" alt="응원 토끼" class="study-mascot-img" />
+  </div>
+
   <!-- TEST RESULT MODAL -->
   <div class="modal-overlay" id="resultModal">
     <div class="modal-card">
@@ -1134,11 +1147,18 @@
         <div class="score-rule-tag" id="modalFeedback">멋지게 해냈어요!</div>
       </div>
 
+      <!-- 틀린 단어 목록 영역 -->
+      <div id="modalWrongWordsContainer" class="modal-wrong-words-box" style="display: none;"></div>
+
       <!-- Result Action Options -->
       <div class="modal-actions">
         <button class="action-btn btn-next" id="modalBtnExplanation"
           style="background: #6C52EE; color: #fff; width: 100%; margin-bottom: 6px;">
           💡 정답 및 해설 보기 (문제와 함께 2분할 확인)
+        </button>
+        <button class="action-btn btn-wrong-retake" id="modalBtnRetakeWrong"
+          style="background: #FF5376; color: #fff; width: 100%; margin-bottom: 6px; display: none;">
+          ⚡ 틀린 단어만 바로 재시험
         </button>
         <button class="action-btn btn-prev" id="modalBtnRetakeAll">
           🔄 모든 문제 다시 풀기
@@ -1299,7 +1319,8 @@
       </div>
 
       <!-- 오답노트 관리 하단 액션 영역 (맨 아래 오른쪽) -->
-      <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #F0EBF8;">
+      <div
+        style="display: flex; justify-content: flex-end; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #F0EBF8;">
         <button type="button" class="action-btn" id="btnOpenWrongReportPrint"
           style="background: #10B981; color: #fff; border-color: #059669; font-weight: 800; padding: 8px 16px; font-size: 13px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);"
           title="오답노트 모아보기 및 인쇄">
@@ -1336,7 +1357,7 @@
   <div class="modal-overlay" id="wrongNotesPrintModal">
     <div class="modal-card modal-large" id="wrongNotesPrintCard"
       style="max-width: 860px; max-height: 92vh; display: flex; flex-direction: column;">
-      
+
       <!-- 상단 액션 툴바 (화면 전용, 인쇄 시 숨김) -->
       <div class="no-print"
         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1.5px solid #F0EBF8; padding-bottom: 10px; gap: 10px; flex-wrap: wrap;">
@@ -1348,7 +1369,8 @@
         </div>
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 6px;">
-            <label for="wrongPrintLessonFilter" style="font-size: 12px; font-weight: 700; color: #4B5563;">단원 선택:</label>
+            <label for="wrongPrintLessonFilter" style="font-size: 12px; font-weight: 700; color: #4B5563;">단원
+              선택:</label>
             <select id="wrongPrintLessonFilter" class="subjective-input"
               style="padding: 5px 10px; font-size: 12.5px; border-radius: 6px; min-width: 150px; background: #FFF;">
               <option value="ALL">전체 단원 보기</option>

@@ -452,7 +452,6 @@ function renderStudyPage() {
           <span class="word-text ${isEngMasked ? 'masked-text' : ''}" data-wordkey="${wordKey}">
             ${word.word}
           </span>
-          <span class="word-pos">${word.pos || ''}</span>
         </div>
       </div>
       <div class="word-meaning-box ${isKorMasked ? 'masked-text' : ''}" data-wordkey="${wordKey}" title="${word.meaning}">
@@ -580,9 +579,9 @@ function initTestSession() {
       index: idx + 1,
       target: w,
       qType: isWriteKorean ? 'KOREAN' : 'ENGLISH',
-      prompt: isWriteKorean ? `${w.word} (${w.pos || ''})` : `${w.meaning} (${w.pos || ''})`,
-      placeholder: isWriteKorean ? "한글 뜻 입력" : "영어 단어 입력",
-      badgeText: isWriteKorean ? "🇰🇷 한글 뜻" : "🇺🇸 영단어"
+      prompt: isWriteKorean ? `${w.word}` : `${w.meaning}`,
+      placeholder: "정답 입력",
+      badgeText: isWriteKorean ? "🇰🇷" : "🇺🇸"
     };
   });
 
@@ -613,7 +612,7 @@ function renderTestQuestions() {
       <span class="test-row-num">Q${q.index}</span>
       <div class="test-row-prompt">
         <span class="test-prompt-text" title="${q.prompt}">${q.prompt}</span>
-        <span class="test-prompt-badge">${q.badgeText}</span>
+        ${q.badgeText ? `<span class="test-prompt-badge">${q.badgeText}</span>` : ''}
       </div>
       <div class="test-row-input-wrap">
         <input type="text" class="test-row-input subjective-input" 
@@ -713,6 +712,37 @@ async function submitAndGradeTest() {
     });
   });
 
+  // 1-1. 시험 진행 화면(.test-row) 채점 결과 인라인 표시
+  const testContainer = document.getElementById('testRowsContainer');
+  if (testContainer) {
+    gradingDetails.forEach((detail, idx) => {
+      const row = testContainer.querySelector(`.test-row[data-row-idx="${idx}"]`);
+      if (row) {
+        row.classList.remove('row-correct', 'row-wrong');
+        row.querySelectorAll('.wrong-answer-hint, .row-status-badge').forEach(el => el.remove());
+
+        const inputWrap = row.querySelector('.test-row-input-wrap');
+        if (detail.result.isCorrect) {
+          row.classList.add('row-correct');
+          if (inputWrap) {
+            const badge = document.createElement('span');
+            badge.className = 'row-status-badge badge-correct';
+            badge.textContent = '✅ 정답';
+            inputWrap.appendChild(badge);
+          }
+        } else {
+          row.classList.add('row-wrong');
+          if (inputWrap) {
+            const hint = document.createElement('div');
+            hint.className = 'wrong-answer-hint';
+            hint.innerHTML = `<span class="hint-label">정답</span> <span class="hint-val">${detail.targetText}</span>`;
+            inputWrap.appendChild(hint);
+          }
+        }
+      }
+    });
+  }
+
   // 2. 점수 계산 (100점 만점)
   const score = Math.round((correctCount / total) * 100);
 
@@ -782,6 +812,10 @@ function showResultModal(data) {
   const durSec = data.durationSeconds || 0;
   const durText = durSec >= 60 ? `${Math.floor(durSec / 60)}분 ${durSec % 60}초` : `${durSec}초`;
   const badgeTitle = data.customTitle || `${APP_STATE.currentRound}회차 ${modeTitle}`;
+  const modalTitleEl = document.getElementById('modalTitle');
+  if (modalTitleEl) {
+    modalTitleEl.textContent = data.isWriting ? '🖋️ 서술형 채점 완료!' : (data.isPdf ? '📄 시험지 채점 완료!' : '테스트 완료!');
+  }
   document.getElementById('currentRoundBadge').textContent = `${badgeTitle} · 소요 시간: ${durText}`;
   document.getElementById('modalScoreNumber').textContent = `${data.score}점`;
 
@@ -806,6 +840,61 @@ function showResultModal(data) {
     feedback.textContent = `틀린 단어들을 오답 노트에서 다시 복습해볼까요? 화이팅! 💖 (${durText})`;
   }
 
+  // 틀린 단어 목록 UI 렌더링 (단어 주관식 시험 전용)
+  const wrongContainer = document.getElementById('modalWrongWordsContainer');
+  const retakeWrongBtn = document.getElementById('modalBtnRetakeWrong');
+
+  if (!data.isWriting && !data.isPdf && data.wrongItems && data.wrongItems.length > 0) {
+    if (wrongContainer) {
+      wrongContainer.style.display = 'block';
+      const itemsHtml = data.wrongItems.map((item, idx) => {
+        const userText = item.userAns && item.userAns.trim() ? item.userAns : '(미작성)';
+        return `
+          <div class="modal-wrong-item">
+            <div class="wrong-item-top">
+              <span class="wrong-item-num">#${idx + 1}</span>
+              <span class="wrong-item-word">${item.word}</span>
+              <span class="wrong-item-pos">${item.meaning}</span>
+            </div>
+            <div class="wrong-item-bottom">
+              <span class="wrong-item-user">내 답: <b>${userText}</b></span>
+              <span class="wrong-item-arrow">➔</span>
+              <span class="wrong-item-correct">정답: <b>${item.correctAns}</b></span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      wrongContainer.innerHTML = `
+        <div class="modal-wrong-header">
+          <span>❌ 틀린 단어 확인 (${data.wrongItems.length}개)</span>
+        </div>
+        <div class="modal-wrong-list">
+          ${itemsHtml}
+        </div>
+      `;
+    }
+
+    if (retakeWrongBtn) {
+      retakeWrongBtn.style.display = 'block';
+      retakeWrongBtn.textContent = `⚡ 틀린 단어만 바로 재시험 (${data.wrongItems.length}개)`;
+      retakeWrongBtn.onclick = () => {
+        modal.classList.remove('open');
+        APP_STATE.testMode = 'WRONG_ONLY';
+        updateTestModeButtons();
+        initTestSession();
+      };
+    }
+  } else {
+    if (wrongContainer) {
+      wrongContainer.style.display = 'none';
+      wrongContainer.innerHTML = '';
+    }
+    if (retakeWrongBtn) {
+      retakeWrongBtn.style.display = 'none';
+    }
+  }
+
   // 정답 및 해설 보기 버튼 처리
   const btnExpl = document.getElementById('modalBtnExplanation');
   if (btnExpl) {
@@ -822,12 +911,6 @@ function showResultModal(data) {
     } else {
       btnExpl.style.display = 'none';
     }
-  }
-
-  // 오답 재시험 버튼 (요청에 따라 기본 숨김/제거됨)
-  const retakeWrongBtn = document.getElementById('modalBtnRetakeWrong');
-  if (retakeWrongBtn) {
-    retakeWrongBtn.style.display = 'none';
   }
 
   modal.classList.add('open');
@@ -850,7 +933,6 @@ function renderRankingTable() {
     <tr>
       <td style="font-weight:800; color:#8B78E6;">#${idx + 1}</td>
       <td style="font-weight:800; color:#382B68;">${w.word}</td>
-      <td><span class="word-pos">${w.pos || ''}</span></td>
       <td>${w.meaning}</td>
       <td style="color:#FF5376; font-weight:900;">${w.wrong_count || 0}회</td>
       <td style="color:#7E739B;">${w.test_count || 0}회</td>
@@ -863,7 +945,6 @@ function renderRankingTable() {
         <tr>
           <th>순위</th>
           <th>영어 단어</th>
-          <th>품사</th>
           <th>교재 뜻</th>
           <th>누적 오답</th>
           <th>총 응시</th>
@@ -889,7 +970,6 @@ function renderFinalMistakesTable() {
     <tr>
       <td style="text-align:center; font-weight:800;">${idx + 1}</td>
       <td style="font-weight:800; font-size:14px; color:#2A1D54;">${w.word}</td>
-      <td style="text-align:center;"><span class="word-pos">${w.pos || ''}</span></td>
       <td style="font-size:13.5px; font-weight:700;">${w.meaning}</td>
       <td style="font-size:12px; color:#6B5F8C;">${w.eng_def || '-'}</td>
       <td style="text-align:center; color:#FF5376; font-weight:900;">${w.wrong_count}회</td>
@@ -907,7 +987,6 @@ function renderFinalMistakesTable() {
         <tr>
           <th style="width:40px; text-align:center;">번호</th>
           <th style="width:140px;">영어 단어</th>
-          <th style="width:50px; text-align:center;">품사</th>
           <th style="width:200px;">교재 공식 뜻</th>
           <th>영영 풀이</th>
           <th style="width:70px; text-align:center;">오답 수</th>
@@ -1255,7 +1334,7 @@ async function loadParentReportData() {
 
     // 오답 상세 테이블
     if (wrongLogs.length === 0) {
-      wrongBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#9587B6; padding:16px;">[${curSub}] 오답 기록이 없습니다. 완벽합니다!</td></tr>`;
+      wrongBody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#9587B6; padding:16px;">[${curSub}] 오답 기록이 없습니다. 완벽합니다!</td></tr>`;
     } else {
       wrongBody.innerHTML = wrongLogs.map(h => {
         const d = new Date(h.created_at);
@@ -1266,7 +1345,6 @@ async function loadParentReportData() {
         return `
           <tr>
             <td style="font-weight:900; color:#382B68;">${h.vocab_words?.word || '-'}</td>
-            <td><span class="word-pos">${h.vocab_words?.pos || '-'}</span></td>
             <td style="font-weight:700; color:#5C4B99;">${h.correct_answer || h.vocab_words?.meaning}</td>
             <td style="color:#FF5376; font-weight:800;">${h.user_answer || '(미작성)'}</td>
             <td style="color:#8F83AE; font-weight:700; letter-spacing:0.5px;">${timeStr}</td>
@@ -2791,6 +2869,15 @@ async function submitPaperTest() {
 
     const starsRow = document.getElementById('modalStarsRow');
     if (starsRow) starsRow.innerHTML = '⭐️'.repeat(starsWon) || '🌱';
+
+    // PDF 시험지 결과 모달에서는 단어 오답 영역 및 재시험 버튼 숨김
+    const wrongWordsBox = document.getElementById('modalWrongWordsContainer');
+    if (wrongWordsBox) {
+      wrongWordsBox.style.display = 'none';
+      wrongWordsBox.innerHTML = '';
+    }
+    const retakeWrongBtn = document.getElementById('modalBtnRetakeWrong');
+    if (retakeWrongBtn) retakeWrongBtn.style.display = 'none';
 
     // 답안 제출 완료 후 결과 화면에서 '해설보기' 버튼을 누르면 그때 테스트 뷰가 해설뷰와 같은 모양으로 전환!
     const btnExpl = document.getElementById('modalBtnExplanation');
