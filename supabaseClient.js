@@ -1300,24 +1300,36 @@ async function apiGetWritingSentences(lessonId) {
 }
 
 /**
- * 9-2. 서술형 영작 문장 일괄 등록 (기존 삭제 후 등록)
+ * 9-2. 서술형 영작 문장 일괄 등록 (기존 유지 + 누적 추가 등록)
  */
 async function apiInsertWritingSentences(lessonId, sentences) {
   if (!lessonId || !sentences || sentences.length === 0) return [];
-  const records = sentences.map((s, idx) => ({
-    lesson_id: Number(lessonId) || lessonId,
-    sentence_no: Number(s.sentence_no) || (idx + 1),
-    korean_prompt: s.korean_prompt || '',
-    english_sentence: s.english_sentence || '',
-    word_count: Number(s.word_count) || (s.english_sentence ? s.english_sentence.trim().split(/\s+/).length : 0)
-  }));
+  const targetLessonId = Number(lessonId) || lessonId;
 
   if (isSupabaseConnected()) {
     try {
-      await supabaseClient
+      // 1. 기존 문항 중 최대 sentence_no 조회하여 이어서 번호 부여
+      const { data: maxRows, error: maxErr } = await supabaseClient
         .from('writing_sentences')
-        .delete()
-        .eq('lesson_id', Number(lessonId) || lessonId);
+        .select('sentence_no')
+        .eq('lesson_id', targetLessonId)
+        .order('sentence_no', { ascending: false })
+        .limit(1);
+
+      if (maxErr) {
+        console.warn('apiInsertWritingSentences max sentence_no query error:', maxErr);
+      }
+
+      const maxNo = (maxRows && maxRows.length > 0 && Number(maxRows[0].sentence_no)) ? Number(maxRows[0].sentence_no) : 0;
+      const startNo = maxNo + 1;
+
+      const records = sentences.map((s, idx) => ({
+        lesson_id: targetLessonId,
+        sentence_no: startNo + idx,
+        korean_prompt: s.korean_prompt || '',
+        english_sentence: s.english_sentence || '',
+        word_count: Number(s.word_count) || (s.english_sentence ? s.english_sentence.trim().split(/\s+/).length : 0)
+      }));
 
       const { data, error } = await supabaseClient
         .from('writing_sentences')
@@ -1333,15 +1345,32 @@ async function apiInsertWritingSentences(lessonId, sentences) {
   }
 
   // Local fallback
-  const saved = records.map((r, i) => ({
-    ...r,
+  const existingRaw = localStorage.getItem(LOCAL_STORAGE_KEYS.WRITING_PREFIX + lessonId);
+  let existing = [];
+  try {
+    existing = existingRaw ? JSON.parse(existingRaw) : [];
+    if (!Array.isArray(existing)) existing = [];
+  } catch (e) {
+    existing = [];
+  }
+
+  const maxNo = existing.reduce((max, item) => Math.max(max, Number(item.sentence_no) || 0), 0);
+  const startNo = maxNo > 0 ? maxNo + 1 : (existing.length + 1);
+
+  const saved = sentences.map((r, i) => ({
+    lesson_id: targetLessonId,
+    sentence_no: startNo + i,
+    korean_prompt: r.korean_prompt || '',
+    english_sentence: r.english_sentence || '',
+    word_count: Number(r.word_count) || (r.english_sentence ? r.english_sentence.trim().split(/\s+/).length : 0),
     id: Date.now() + i,
     test_count: 0,
     wrong_count: 0,
     is_mastered: false,
     created_at: new Date().toISOString()
   }));
-  localStorage.setItem(LOCAL_STORAGE_KEYS.WRITING_PREFIX + lessonId, JSON.stringify(saved));
+  const merged = [...existing, ...saved];
+  localStorage.setItem(LOCAL_STORAGE_KEYS.WRITING_PREFIX + lessonId, JSON.stringify(merged));
   return saved;
 }
 

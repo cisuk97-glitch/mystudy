@@ -74,6 +74,8 @@ const APP_STATE = {
 
   // Writing Sentences Practice State (서술형 영작)
   writingSentences: [],
+  selectedWritingIds: new Set(),
+  activeWritingSentences: [],
   currentWritingIndex: 0,
   writingAnswers: {},      // { [qIdx]: string[] } 단어별 입력값 보존
   writingFirstResults: {}, // { [qIdx]: { isCorrect, correctCount, wrongCount, totalSlots, sentenceId, sentenceNo, myAnswer } }
@@ -1979,12 +1981,15 @@ function setupDirectWritingModal() {
     submitBtn.textContent = '저장 중...';
 
     try {
+      const addedCount = cachedParsedDirectWriting.sentences.length;
       await window.MSE_DB.apiInsertWritingSentences(lessonId, cachedParsedDirectWriting.sentences);
       modal.classList.remove('open');
-      alert(`🎉 ${cachedParsedDirectWriting.sentences.length}개 서술형 영작 문제가 성공적으로 등록되었습니다!`);
       await switchLesson(lessonId);
-      // 서술형 영작 탭으로 전환
+      const totalCount = (APP_STATE.writingSentences && APP_STATE.writingSentences.length) || addedCount;
+      alert(`🎉 ${addedCount}개 서술형 문제가 추가되어 총 ${totalCount}문제가 되었습니다!`);
+      // 서술형 영작 탭으로 전환 및 화면 갱신
       document.getElementById('tabBtnPaperTest')?.click();
+      initWritingSession();
     } catch (err) {
       console.error('apiInsertWritingSentences error:', err);
       alert('서술형 영작 등록 실패: ' + err.message);
@@ -5213,7 +5218,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btnWritingNext')?.addEventListener('click', () => {
-    if (APP_STATE.currentWritingIndex < (APP_STATE.writingSentences.length - 1)) {
+    if (APP_STATE.currentWritingIndex < (getActiveWritingList().length - 1)) {
       saveWritingCurrentAnswers();
       APP_STATE.currentWritingIndex++;
       renderWritingCurrentQuestion();
@@ -5244,6 +5249,25 @@ document.addEventListener('DOMContentLoaded', () => {
     finishWritingSession();
   });
 
+  // 서술형 문제 선택 모달/패널 제어 이벤트
+  document.getElementById('btnWritingSelectAll')?.addEventListener('click', () => {
+    selectAllWritingQuestions(true);
+  });
+  document.getElementById('btnWritingDeselectAll')?.addEventListener('click', () => {
+    selectAllWritingQuestions(false);
+  });
+  document.getElementById('btnWritingStartSelected')?.addEventListener('click', () => {
+    startWritingSelectedSession();
+  });
+  document.getElementById('btnWritingReselectHeader')?.addEventListener('click', () => {
+    saveWritingCurrentAnswers();
+    openWritingSelectionView();
+  });
+  document.getElementById('btnWritingExplReselect')?.addEventListener('click', () => {
+    document.getElementById('writingExplanationModal')?.classList.remove('open');
+    openWritingSelectionView();
+  });
+
   // 서술형 정답 및 해설 모달 액션 버튼
   document.getElementById('btnWritingExplRetakeAll')?.addEventListener('click', () => {
     retakeAllWritingQuestions();
@@ -5264,10 +5288,14 @@ async function fetchWritingSentences(lessonId) {
   try {
     if (!lessonId || lessonId === 'ALL_TESTS') {
       APP_STATE.writingSentences = [];
+      APP_STATE.activeWritingSentences = [];
+      APP_STATE.selectedWritingIds = new Set();
       return;
     }
     const list = await window.MSE_DB.apiGetWritingSentences(lessonId);
     APP_STATE.writingSentences = list || [];
+    APP_STATE.selectedWritingIds = new Set((list || []).map(q => q.id));
+    APP_STATE.activeWritingSentences = [];
     APP_STATE.currentWritingIndex = 0;
     APP_STATE.writingAnswers = {};
     APP_STATE.writingFirstResults = {};
@@ -5287,6 +5315,8 @@ async function fetchWritingSentences(lessonId) {
   } catch (e) {
     console.error('fetchWritingSentences error:', e);
     APP_STATE.writingSentences = [];
+    APP_STATE.activeWritingSentences = [];
+    APP_STATE.selectedWritingIds = new Set();
   }
 }
 
@@ -5408,12 +5438,22 @@ function saveWritingCurrentAnswers() {
   }
 }
 
-function initWritingSession() {
+// 활성화된 서술형 문제 목록 헬퍼 (선택된 문제가 없으면 전체 등록 문제 반환)
+function getActiveWritingList() {
+  if (APP_STATE.activeWritingSentences && APP_STATE.activeWritingSentences.length > 0) {
+    return APP_STATE.activeWritingSentences;
+  }
+  return APP_STATE.writingSentences || [];
+}
+
+// 서술형 문제 선택 화면 표시
+function openWritingSelectionView() {
   const paperEmpty = document.getElementById('paperTestEmptyState');
   const paperActive = document.getElementById('paperTestActiveArea');
   const writingWrap = document.getElementById('writingContainer');
   const writingEmpty = document.getElementById('writingEmptyState');
   const writingCard = document.getElementById('writingActiveCard');
+  const selectionCard = document.getElementById('writingSelectionCard');
 
   if (paperEmpty) paperEmpty.style.display = 'none';
   if (paperActive) paperActive.style.display = 'none';
@@ -5422,30 +5462,207 @@ function initWritingSession() {
   if (!APP_STATE.writingSentences || APP_STATE.writingSentences.length === 0) {
     if (writingEmpty) writingEmpty.style.display = 'block';
     if (writingCard) writingCard.style.display = 'none';
+    if (selectionCard) selectionCard.style.display = 'none';
     return;
   }
 
   if (writingEmpty) writingEmpty.style.display = 'none';
-  if (writingCard) writingCard.style.display = 'flex';
+  if (writingCard) writingCard.style.display = 'none';
+  if (selectionCard) selectionCard.style.display = 'flex';
 
-  if (!APP_STATE.writingAnswers) APP_STATE.writingAnswers = {};
-  if (!APP_STATE.writingFirstResults) APP_STATE.writingFirstResults = {};
-  if (!APP_STATE.writingSession) {
-    APP_STATE.writingSession = {
-      elapsedSec: 0,
-      isTiming: false,
-      isIdle: false,
-      lastTick: null,
-      lastInputTime: null,
-      _pausedByVisibility: false
-    };
+  pauseWritingSessionTimer();
+
+  // 최초 진입 시 전체 문제 기본 선택
+  if (!APP_STATE.selectedWritingIds || APP_STATE.selectedWritingIds.size === 0) {
+    APP_STATE.selectedWritingIds = new Set(APP_STATE.writingSentences.map(q => q.id));
   }
 
+  renderWritingSelectionList();
+}
+
+// 서술형 문제 선택 목록 렌더링
+function renderWritingSelectionList() {
+  const list = APP_STATE.writingSentences || [];
+  const container = document.getElementById('writingSelectionList');
+  const titleEl = document.getElementById('writingSelectionLessonTitle');
+  if (titleEl) {
+    titleEl.textContent = APP_STATE.currentLessonName || '영작 문제 선택';
+  }
+  if (!container) return;
+  container.innerHTML = '';
+
+  list.forEach((q, idx) => {
+    const isChecked = APP_STATE.selectedWritingIds ? APP_STATE.selectedWritingIds.has(q.id) : true;
+    const item = document.createElement('div');
+    item.className = `writing-select-item ${isChecked ? 'selected' : ''}`;
+    item.dataset.id = q.id;
+
+    const qNum = q.sentence_no || (idx + 1);
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.id = `chk_writing_${q.id}`;
+    chk.checked = isChecked;
+
+    const numSpan = document.createElement('span');
+    numSpan.className = 'writing-select-item-num';
+    numSpan.textContent = `Q${qNum}`;
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'writing-select-item-text';
+    textSpan.textContent = q.korean_prompt || '(한글 해석 없음)';
+
+    item.appendChild(chk);
+    item.appendChild(numSpan);
+    item.appendChild(textSpan);
+
+    chk.addEventListener('change', (e) => {
+      e.stopPropagation();
+      if (chk.checked) {
+        APP_STATE.selectedWritingIds.add(q.id);
+        item.classList.add('selected');
+      } else {
+        APP_STATE.selectedWritingIds.delete(q.id);
+        item.classList.remove('selected');
+      }
+      updateWritingSelectionSummary();
+    });
+
+    item.addEventListener('click', (e) => {
+      if (e.target === chk) return;
+      chk.checked = !chk.checked;
+      chk.dispatchEvent(new Event('change'));
+    });
+
+    container.appendChild(item);
+  });
+
+  updateWritingSelectionSummary();
+}
+
+// 선택된 문제 요약 정보 및 시작 버튼 상태 갱신
+function updateWritingSelectionSummary() {
+  const total = (APP_STATE.writingSentences || []).length;
+  const selectedCount = APP_STATE.selectedWritingIds ? APP_STATE.selectedWritingIds.size : 0;
+  const minRequired = Math.min(3, total);
+  const isValid = (total < 3) ? (selectedCount === total) : (selectedCount >= 3);
+
+  const badge = document.getElementById('writingSelectionCountBadge');
+  if (badge) {
+    badge.textContent = `선택됨: ${selectedCount} / ${total}문항 (최소 ${minRequired}문항)`;
+  }
+
+  const startBtn = document.getElementById('btnWritingStartSelected');
+  if (startBtn) {
+    startBtn.disabled = !isValid;
+    if (isValid) {
+      startBtn.textContent = `🚀 선택한 문제 풀이 시작 (${selectedCount}문제)`;
+    } else {
+      startBtn.textContent = `⚠️ 최소 ${minRequired}문제를 선택해주세요 (${selectedCount}/${minRequired})`;
+    }
+  }
+}
+
+// 전체 선택 / 전체 해제 토글
+function selectAllWritingQuestions(select) {
+  if (!APP_STATE.writingSentences) return;
+  if (!APP_STATE.selectedWritingIds) APP_STATE.selectedWritingIds = new Set();
+
+  if (select) {
+    APP_STATE.writingSentences.forEach(q => APP_STATE.selectedWritingIds.add(q.id));
+  } else {
+    APP_STATE.selectedWritingIds.clear();
+  }
+
+  const container = document.getElementById('writingSelectionList');
+  if (container) {
+    const isChecked = Boolean(select);
+    const items = container.querySelectorAll('.writing-select-item');
+    items.forEach(item => {
+      const chk = item.querySelector('input[type="checkbox"]');
+      if (chk) chk.checked = isChecked;
+      item.classList.toggle('selected', isChecked);
+    });
+  }
+
+  updateWritingSelectionSummary();
+}
+
+// 선택된 문제 기반으로 풀이 세션 시작
+function startWritingSelectedSession() {
+  const total = (APP_STATE.writingSentences || []).length;
+  const selectedCount = APP_STATE.selectedWritingIds ? APP_STATE.selectedWritingIds.size : 0;
+  const minRequired = Math.min(3, total);
+  const isValid = (total < 3) ? (selectedCount === total) : (selectedCount >= 3);
+
+  if (!isValid) {
+    alert(`최소 ${minRequired}문제 이상 선택해야 풀이를 시작할 수 있습니다.`);
+    return;
+  }
+
+  // 선택된 항목만 필터링하여 활성 목록 구성
+  APP_STATE.activeWritingSentences = (APP_STATE.writingSentences || []).filter(q =>
+    APP_STATE.selectedWritingIds.has(q.id)
+  );
+
+  APP_STATE.currentWritingIndex = 0;
+  APP_STATE.writingAnswers = {};
+  APP_STATE.writingFirstResults = {};
+
+  if (APP_STATE.writingSessionTimerInterval) {
+    clearInterval(APP_STATE.writingSessionTimerInterval);
+    APP_STATE.writingSessionTimerInterval = null;
+  }
+  APP_STATE.writingSession = {
+    elapsedSec: 0,
+    isTiming: false,
+    isIdle: false,
+    lastTick: null,
+    lastInputTime: null,
+    _pausedByVisibility: false
+  };
+
+  const selectionCard = document.getElementById('writingSelectionCard');
+  const writingCard = document.getElementById('writingActiveCard');
+  if (selectionCard) selectionCard.style.display = 'none';
+  if (writingCard) writingCard.style.display = 'flex';
+
+  updateWritingSessionTimerBadge();
   renderWritingCurrentQuestion();
 }
 
+function initWritingSession() {
+  const paperEmpty = document.getElementById('paperTestEmptyState');
+  const paperActive = document.getElementById('paperTestActiveArea');
+  const writingWrap = document.getElementById('writingContainer');
+  const writingEmpty = document.getElementById('writingEmptyState');
+  const writingCard = document.getElementById('writingActiveCard');
+  const selectionCard = document.getElementById('writingSelectionCard');
+
+  if (paperEmpty) paperEmpty.style.display = 'none';
+  if (paperActive) paperActive.style.display = 'none';
+  if (writingWrap) writingWrap.style.display = 'block';
+
+  if (!APP_STATE.writingSentences || APP_STATE.writingSentences.length === 0) {
+    if (writingEmpty) writingEmpty.style.display = 'block';
+    if (writingCard) writingCard.style.display = 'none';
+    if (selectionCard) selectionCard.style.display = 'none';
+    return;
+  }
+
+  // 이미 선택된 활성 문제 목록으로 풀이 진행 중인 경우 풀이 카드 유지
+  if (APP_STATE.activeWritingSentences && APP_STATE.activeWritingSentences.length > 0) {
+    if (writingEmpty) writingEmpty.style.display = 'none';
+    if (selectionCard) selectionCard.style.display = 'none';
+    if (writingCard) writingCard.style.display = 'flex';
+    renderWritingCurrentQuestion();
+  } else {
+    // 최초 진입 시 문제 선택 화면 오픈
+    openWritingSelectionView();
+  }
+}
+
 function renderWritingCurrentQuestion() {
-  const list = APP_STATE.writingSentences;
+  const list = getActiveWritingList();
   if (!list || list.length === 0) return;
 
   const idx = Math.max(0, Math.min(APP_STATE.currentWritingIndex, list.length - 1));
@@ -5589,7 +5806,7 @@ function renderWritingCurrentQuestion() {
 
 // 스마트 채점: 단순 정답/오답 확인 피드백 제공 (DB 즉시 저장 X, 최초 채점 결과 고정, 타이머 계속 진행)
 async function gradeWritingCurrentQuestion() {
-  const list = APP_STATE.writingSentences;
+  const list = getActiveWritingList();
   if (!list || list.length === 0) return;
   const idx = APP_STATE.currentWritingIndex;
   const q = list[idx];
@@ -5665,7 +5882,7 @@ async function gradeWritingCurrentQuestion() {
 
 // 서술형 영작 시험 최종 완료 및 성적 저장
 async function finishWritingSession() {
-  const list = APP_STATE.writingSentences || [];
+  const list = getActiveWritingList();
   const totalQ = list.length;
   if (totalQ === 0) {
     alert('등록된 서술형 문제가 없습니다.');
@@ -5755,7 +5972,7 @@ function openWritingExplanationModal() {
   const container = document.getElementById('writingExplListContainer');
   if (!modal || !container) return;
 
-  const list = APP_STATE.writingSentences || [];
+  const list = getActiveWritingList();
   container.innerHTML = '';
 
   list.forEach((q, idx) => {
@@ -5836,6 +6053,12 @@ function retakeAllWritingQuestions() {
   };
 
   updateWritingSessionTimerBadge();
+
+  const selectionCard = document.getElementById('writingSelectionCard');
+  const writingCard = document.getElementById('writingActiveCard');
+  if (selectionCard) selectionCard.style.display = 'none';
+  if (writingCard) writingCard.style.display = 'flex';
+
   renderWritingCurrentQuestion();
 }
 

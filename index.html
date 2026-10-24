@@ -479,9 +479,13 @@
           * 최초 채점 결과를 기준으로 정오답이 판정됩니다.
         </div>
         <div style="display: flex; gap: 8px;">
+          <button type="button" class="action-btn btn-prev" id="btnWritingExplReselect"
+            style="padding: 8px 16px; font-size: 13px; font-weight: 800;">
+            📋 문제 다시 선택
+          </button>
           <button type="button" class="action-btn btn-prev" id="btnWritingExplRetakeAll"
             style="padding: 8px 16px; font-size: 13px; font-weight: 800;">
-            🔄 모든 문제 다시 풀기
+            🔄 선택 문제 다시 풀기
           </button>
           <button type="button" class="action-btn" id="btnWritingExplClose"
             style="background: #ECE7FF; color: #5C48B0; padding: 8px 16px; font-size: 13px; font-weight: 800;">
@@ -797,7 +801,7 @@
           <span class="test-timer-badge" id="vocabTestTimerBadge"
             style="margin-left: 8px; font-weight: 800; color: #7B61FF; font-size: 13px; min-width: 60px; text-align: right;">⏱️
             00:00</span>
-        </div>
+        </div><button type="button" class="action-btn btn-prev" id="btnWritingHint">
       </div>
 
       <div class="test-guide-banner">
@@ -835,9 +839,39 @@
           </button>
         </div>
 
+        <!-- 서술형 문제 선택 카드 -->
+        <div id="writingSelectionCard" class="writing-card-layout" style="display: none;">
+          <div class="writing-header">
+            <div class="writing-header-left">
+              <span class="writing-q-badge" id="writingSelectionBadge">문제 선택</span>
+              <span class="writing-lesson-title" id="writingSelectionLessonTitle">단원명</span>
+              <span class="writing-selection-count-badge" id="writingSelectionCountBadge">선택됨: 0 / 0문항</span>
+            </div>
+            <div class="writing-header-nav">
+              <button type="button" class="btn-micro" id="btnWritingSelectAll">전체 선택</button>
+              <button type="button" class="btn-micro" id="btnWritingDeselectAll">전체 해제</button>
+            </div>
+          </div>
+
+          <div class="writing-selection-guide">
+            💡 풀이할 문제를 체크박스로 선택하세요. (최소 3문제 이상)
+          </div>
+
+          <div class="writing-selection-list" id="writingSelectionList">
+            <!-- 체크박스 문제 목록 동적 렌더링 -->
+          </div>
+
+          <div class="writing-action-bar" style="margin-top: 14px;">
+            <button type="button" class="action-btn btn-next" id="btnWritingStartSelected"
+              style="width: 100%; font-weight: 800; padding: 12px;" disabled>
+              🚀 선택한 문제 풀이 시작 (0문제)
+            </button>
+          </div>
+        </div>
+
         <!-- 서술형 인터랙티브 풀이 카드 -->
         <div id="writingActiveCard" class="writing-card-layout" style="display: none;">
-          <!-- 1. 상단 헤더: Q 1 / 15, 단원 타이틀, [◀ 이전], [다음 ▶], [🏁 완료] -->
+          <!-- 1. 상단 헤더: Q 1 / 15, 단원 타이틀, [📋 문제 재선택], [🏁 완료], [◀ 이전], [다음 ▶] -->
           <div class="writing-header">
             <div class="writing-header-left">
               <span class="writing-q-badge" id="writingQBadge">Q 1 / 15</span>
@@ -846,6 +880,7 @@
                 style="margin-left: 10px; font-weight: 800; color: #7B61FF; font-size: 13px;">⏱️ 00:00 (입력 시 시작)</span>
             </div>
             <div class="writing-header-nav">
+              <button type="button" class="btn-micro" id="btnWritingReselectHeader" title="문제 다시 선택">📋 문제 재선택</button>
               <button type="button" class="btn-micro" id="btnWritingFinishHeader"
                 style="background: #94CBF8; color: #fff; font-weight: 800; border: none;" title="시험 완료"> 완료</button>
               <button type="button" class="btn-micro" id="btnWritingPrev" title="이전 문제">◀ 이전</button>
@@ -879,9 +914,9 @@
 
           <!-- 5. 하단 컨트롤 버튼 바: [🏁 시험 완료], [💡 힌트 보기], [🔄 다시 쓰기], [✅ 채점하기] -->
           <div class="writing-action-bar">
-            <button type="button" class="action-btn btn-next" id="btnWritingFinish"
-              style="font-weight: 800;"> 시험 완료</button>
-            <button type="button" class="action-btn btn-prev" id="btnWritingHint"> 힌트 보기</button>
+            <button type="button" class="action-btn btn-next" id="btnWritingFinish" style="font-weight: 800;"> 시험
+              완료</button>
+
             <button type="button" class="action-btn btn-prev" id="btnWritingReset"> 다시 쓰기</button>
             <button type="button" class="action-btn btn-next" id="btnWritingGrade"> 채점하기</button>
           </div>

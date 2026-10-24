@@ -3146,6 +3146,97 @@ body:has(#tab-paper_test.active) {
   margin-top: 8px;
 }
 
+/* 서술형 영작 문제 선택 화면 스타일 */
+.writing-selection-count-badge {
+  background: #EDE9FE;
+  color: #6D28D9;
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #DDD6FE;
+}
+
+.writing-selection-guide {
+  font-size: 13.5px;
+  color: #4C3B78;
+  background: #F8F6FF;
+  border-left: 4px solid #7B61FF;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.writing-selection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 440px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.writing-select-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid #E2E8F0;
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+}
+
+.writing-select-item:hover {
+  border-color: #CBD5E1;
+  background: #F8FAFC;
+  transform: translateY(-1px);
+}
+
+.writing-select-item.selected {
+  border-color: #7B61FF;
+  background: #FAF9FF;
+  box-shadow: 0 2px 8px rgba(123, 97, 255, 0.08);
+}
+
+.writing-select-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #7B61FF;
+  cursor: pointer;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.writing-select-item-num {
+  font-weight: 900;
+  font-size: 12.5px;
+  color: #7B61FF;
+  background: #F3F0FF;
+  padding: 2px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.writing-select-item-text {
+  flex: 1;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1E293B;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+#btnWritingStartSelected:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: #94A3B8 !important;
+  box-shadow: none !important;
+}
+
+
 /* ========================================================
    단어공부 응원 마스코트 (우측 하단 부드러운 점프 애니메이션)
    ======================================================== */
